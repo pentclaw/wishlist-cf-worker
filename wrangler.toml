@@ -1,0 +1,9 @@
+name = "wishlist-cf-worker"
+main = "src/index.ts"
+compatibility_date = "2026-03-05"
+
+# 使用命令创建 KV 后，将下方占位符替换为真实 namespace ID
+[[kv_namespaces]]
+binding = "WISHLIST_KV"
+id = "YOUR_KV_NAMESPACE_ID"
+preview_id = "YOUR_KV_PREVIEW_ID"
