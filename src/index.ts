@@ -145,8 +145,37 @@ app.use('/api/wishes*', async (c, next) => {
 
 app.get('/api/wishes', async (c) => {
   const state = await loadWishState(c.env.WISHLIST_KV);
-  const wishes = [...state.wishes].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-  return c.json({ wishes });
+  const q = (c.req.query('q') ?? '').trim().toLowerCase();
+  const page = normalizePositiveInt(c.req.query('page'), 1);
+  const pageSize = normalizePositiveInt(c.req.query('pageSize'), 8, 1, 50);
+
+  let wishes = [...state.wishes].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  if (q) {
+    wishes = wishes.filter((wish) => {
+      const title = wish.title.toLowerCase();
+      const description = wish.description.toLowerCase();
+      return title.includes(q) || description.includes(q);
+    });
+  }
+
+  const total = wishes.length;
+  const totalPages = total === 0 ? 0 : Math.ceil(total / pageSize);
+  const currentPage = totalPages === 0 ? 1 : Math.min(page, totalPages);
+  const start = (currentPage - 1) * pageSize;
+  const pagedWishes = wishes.slice(start, start + pageSize);
+
+  return c.json({
+    wishes: pagedWishes,
+    pagination: {
+      total,
+      page: currentPage,
+      pageSize,
+      totalPages,
+    },
+    query: {
+      q,
+    },
+  });
 });
 
 app.post('/api/wishes', async (c) => {
@@ -303,6 +332,19 @@ function bytesToBase64(bytes: Uint8Array): string {
     binary += String.fromCharCode(value);
   }
   return btoa(binary);
+}
+
+function normalizePositiveInt(
+  raw: string | undefined,
+  fallback: number,
+  min = 1,
+  max = Number.MAX_SAFE_INTEGER,
+): number {
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < min) {
+    return fallback;
+  }
+  return Math.min(value, max);
 }
 
 export default app;

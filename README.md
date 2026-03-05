@@ -83,7 +83,7 @@ npm run deploy
 
 ### 管理接口（需请求头 `x-wishlist-password`）
 
-- `GET /api/wishes`
+- `GET /api/wishes?page=1&pageSize=8&q=关键词`（支持分页和搜索）
 - `POST /api/wishes`
 - `PUT /api/wishes/:id`
 - `DELETE /api/wishes/:id`

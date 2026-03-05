@@ -276,6 +276,39 @@ export function renderHtml(projectName: string): string {
         font-size: 0.86rem;
       }
 
+      .manage-toolbar {
+        display: grid;
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+
+      .search-form {
+        display: flex;
+        gap: 8px;
+      }
+
+      .search-input {
+        flex: 1;
+      }
+
+      .manage-meta {
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      .pager {
+        margin-top: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .pager-info {
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
       @media (max-width: 860px) {
         .layout {
           grid-template-columns: 1fr;
@@ -284,6 +317,10 @@ export function renderHtml(projectName: string): string {
         .topbar {
           flex-direction: column;
           align-items: flex-start;
+        }
+
+        .search-form {
+          flex-wrap: wrap;
         }
       }
     </style>
@@ -379,7 +416,20 @@ export function renderHtml(projectName: string): string {
 
         <section class="card" style="margin-top:12px;">
           <h3>全部愿望</h3>
+          <div class="manage-toolbar">
+            <form id="searchForm" class="search-form">
+              <input id="searchInput" class="search-input" placeholder="搜索项目名称或描述" />
+              <button type="submit" class="button secondary">搜索</button>
+              <button type="button" class="button ghost" id="clearSearch">清空</button>
+            </form>
+            <div class="manage-meta" id="manageMeta">共 0 条</div>
+          </div>
           <div class="manage-list" id="manageList"></div>
+          <div class="pager">
+            <button type="button" class="button secondary" id="prevPage">上一页</button>
+            <span class="pager-info" id="pagerInfo">第 1 / 1 页</span>
+            <button type="button" class="button secondary" id="nextPage">下一页</button>
+          </div>
         </section>
       </div>
     </aside>
@@ -391,6 +441,11 @@ export function renderHtml(projectName: string): string {
         password: '',
         authed: false,
         wishes: [],
+        manageQuery: '',
+        managePage: 1,
+        managePageSize: 8,
+        manageTotal: 0,
+        manageTotalPages: 0,
         randomWish: null,
         completedWishes: []
       };
@@ -420,6 +475,13 @@ export function renderHtml(projectName: string): string {
       const createForm = document.getElementById('createForm');
       const createStatus = document.getElementById('createStatus');
       const manageList = document.getElementById('manageList');
+      const searchForm = document.getElementById('searchForm');
+      const searchInput = document.getElementById('searchInput');
+      const clearSearch = document.getElementById('clearSearch');
+      const manageMeta = document.getElementById('manageMeta');
+      const pagerInfo = document.getElementById('pagerInfo');
+      const prevPage = document.getElementById('prevPage');
+      const nextPage = document.getElementById('nextPage');
 
       function setText(el, value) {
         if (el) {
@@ -542,11 +604,24 @@ export function renderHtml(projectName: string): string {
       }
 
       async function loadManageWishes() {
-        const data = await fetchJson('/api/wishes', {
+        const params = new URLSearchParams();
+        params.set('page', String(state.managePage));
+        params.set('pageSize', String(state.managePageSize));
+        if (state.manageQuery) {
+          params.set('q', state.manageQuery);
+        }
+
+        const data = await fetchJson('/api/wishes?' + params.toString(), {
           headers: authHeaders(false)
         });
         state.wishes = data.wishes || [];
+        const pagination = data.pagination || {};
+        state.manageTotal = Number(pagination.total) || 0;
+        state.managePage = Number(pagination.page) || 1;
+        state.managePageSize = Number(pagination.pageSize) || state.managePageSize;
+        state.manageTotalPages = Number(pagination.totalPages) || 0;
         renderManageList();
+        renderPager();
       }
 
       function renderManageList() {
@@ -554,7 +629,7 @@ export function renderHtml(projectName: string): string {
         if (!state.wishes.length) {
           const p = document.createElement('p');
           p.className = 'empty';
-          p.textContent = '还没有愿望，先创建一个吧。';
+          p.textContent = state.manageQuery ? '没有匹配的愿望。' : '还没有愿望，先创建一个吧。';
           manageList.appendChild(p);
           return;
         }
@@ -629,6 +704,31 @@ export function renderHtml(projectName: string): string {
           node.appendChild(actions);
           manageList.appendChild(node);
         });
+      }
+
+      function renderPager() {
+        const total = state.manageTotal;
+        const page = state.managePage;
+        const totalPages = state.manageTotalPages;
+
+        if (manageMeta) {
+          if (state.manageQuery) {
+            manageMeta.textContent = '关键词：' + state.manageQuery + ' · 共 ' + total + ' 条';
+          } else {
+            manageMeta.textContent = '共 ' + total + ' 条';
+          }
+        }
+
+        if (pagerInfo) {
+          pagerInfo.textContent = '第 ' + page + ' / ' + Math.max(totalPages, 1) + ' 页';
+        }
+
+        if (prevPage) {
+          prevPage.disabled = page <= 1;
+        }
+        if (nextPage) {
+          nextPage.disabled = totalPages === 0 || page >= totalPages;
+        }
       }
 
       async function updateWish(id, payload) {
@@ -758,6 +858,52 @@ export function renderHtml(projectName: string): string {
           ]);
         } catch (err) {
           setText(createStatus, err.message);
+        }
+      });
+
+      searchForm.addEventListener('submit', async function(event) {
+        event.preventDefault();
+        state.manageQuery = searchInput.value.trim();
+        state.managePage = 1;
+        try {
+          await loadManageWishes();
+        } catch (err) {
+          window.alert(err.message);
+        }
+      });
+
+      clearSearch.addEventListener('click', async function() {
+        searchInput.value = '';
+        state.manageQuery = '';
+        state.managePage = 1;
+        try {
+          await loadManageWishes();
+        } catch (err) {
+          window.alert(err.message);
+        }
+      });
+
+      prevPage.addEventListener('click', async function() {
+        if (state.managePage <= 1) {
+          return;
+        }
+        state.managePage -= 1;
+        try {
+          await loadManageWishes();
+        } catch (err) {
+          window.alert(err.message);
+        }
+      });
+
+      nextPage.addEventListener('click', async function() {
+        if (state.manageTotalPages > 0 && state.managePage >= state.manageTotalPages) {
+          return;
+        }
+        state.managePage += 1;
+        try {
+          await loadManageWishes();
+        } catch (err) {
+          window.alert(err.message);
         }
       });
 
