@@ -35,6 +35,12 @@ function authHeaders(password) {
   };
 }
 
+function cookieHeaders(cookie) {
+  return {
+    cookie,
+  };
+}
+
 async function setupAppState(env, password = 'pass1234') {
   const setupResp = await app.request(
     '/api/setup',
@@ -127,4 +133,43 @@ test('GET /api/public should reject invalid password header', async () => {
     env,
   );
   assert.equal(resp.status, 401);
+});
+
+test('POST /api/auth should issue cookie that keeps session after refresh', async () => {
+  const env = {
+    WISHLIST_KV: new MemoryKV(),
+  };
+  await setupAppState(env);
+
+  const authResp = await app.request(
+    '/api/auth',
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        password: 'pass1234',
+      }),
+    },
+    env,
+  );
+  assert.equal(authResp.status, 200);
+
+  const setCookie = authResp.headers.get('set-cookie') ?? '';
+  assert.match(setCookie, /wishlist_auth=/);
+  const cookie = setCookie.split(';')[0];
+  assert.ok(cookie.length > 0);
+
+  const publicResp = await app.request('/api/public', { headers: cookieHeaders(cookie) }, env);
+  assert.equal(publicResp.status, 200);
+  const publicPayload = await publicResp.json();
+  assert.equal(publicPayload.authenticated, true);
+  assert.equal(publicPayload.totalCount, 1);
+
+  const wishesResp = await app.request('/api/wishes?page=1&pageSize=8', { headers: cookieHeaders(cookie) }, env);
+  assert.equal(wishesResp.status, 200);
+  const wishesPayload = await wishesResp.json();
+  assert.equal(Array.isArray(wishesPayload.wishes), true);
+  assert.equal(wishesPayload.wishes.length, 1);
 });

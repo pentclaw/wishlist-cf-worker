@@ -662,7 +662,10 @@ export function renderHtml(projectName: string): string {
       }
 
       function authHeaders(includeJson) {
-        const headers = { 'x-wishlist-password': state.password };
+        const headers = {};
+        if (state.password) {
+          headers['x-wishlist-password'] = state.password;
+        }
         if (includeJson) {
           headers['content-type'] = 'application/json';
         }
@@ -670,10 +673,20 @@ export function renderHtml(projectName: string): string {
       }
 
       function publicHeaders() {
-        if (!state.authed || !state.password) {
+        if (!state.password) {
           return {};
         }
         return { 'x-wishlist-password': state.password };
+      }
+
+      function syncManagerAuthPanels() {
+        if (state.hasPrivateData) {
+          loginBox.style.display = 'none';
+          managerBody.style.display = 'block';
+          return;
+        }
+        loginBox.style.display = 'block';
+        managerBody.style.display = 'none';
       }
 
       async function fetchJson(url, options) {
@@ -794,13 +807,15 @@ export function renderHtml(projectName: string): string {
           headers: publicHeaders()
         });
         state.hasConfig = Boolean(data.hasConfig);
-        state.hasPrivateData = Boolean(data.authenticated);
         state.ownerName = data.ownerName || '';
         state.randomWish = data.randomWish || null;
         state.completedWishes = data.completedWishes || [];
         state.unfinishedCount = data.unfinishedCount || 0;
+        state.hasPrivateData = Boolean(data.authenticated);
+        state.authed = state.hasPrivateData;
 
         renderOwner();
+        syncManagerAuthPanels();
 
         if (!state.hasConfig) {
           setupCard.style.display = 'block';
@@ -1122,6 +1137,11 @@ export function renderHtml(projectName: string): string {
       function openManagerPanel() {
         manager.classList.add('open');
         managerMask.classList.add('open');
+        if (state.hasPrivateData) {
+          loadManageWishes().catch(function(err) {
+            setText(loginStatus, err.message);
+          });
+        }
       }
 
       function closeManagerPanel() {
@@ -1147,6 +1167,7 @@ export function renderHtml(projectName: string): string {
           await verifyPassword(password);
           state.password = password;
           state.authed = true;
+          state.hasPrivateData = true;
           loginBox.style.display = 'none';
           managerBody.style.display = 'block';
           setText(loginStatus, '');

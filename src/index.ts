@@ -44,6 +44,10 @@ const MAX_IMPORT_WISHES = 5000;
 const MAX_WISH_ID_LENGTH = 128;
 const MAX_WISH_TITLE_LENGTH = 120;
 const MAX_WISH_DESCRIPTION_LENGTH = 2000;
+const AUTH_COOKIE_NAME = 'wishlist_auth';
+const AUTH_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
+
+type RequestAuthState = 'ok' | 'missing' | 'invalid-header' | 'invalid-cookie';
 
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -66,8 +70,11 @@ app.get('/api/public', async (c) => {
     });
   }
 
-  const password = (c.req.header('x-wishlist-password') ?? '').trim();
-  if (!password) {
+  const authState = await resolveRequestAuthState(c, config);
+  if (authState === 'missing' || authState === 'invalid-cookie') {
+    if (authState === 'invalid-cookie') {
+      c.header('Set-Cookie', buildClearAuthCookie(isSecureRequest(c.req.url)));
+    }
     return c.json({
       projectName: PROJECT_NAME,
       hasConfig: true,
@@ -80,8 +87,7 @@ app.get('/api/public', async (c) => {
     });
   }
 
-  const passed = await verifyPassword(config, password);
-  if (!passed) {
+  if (authState !== 'ok') {
     return c.json({ error: '验证失败。' }, 401);
   }
 
@@ -169,6 +175,9 @@ app.post('/api/auth', async (c) => {
     return c.json({ error: '密码错误。' }, 401);
   }
 
+  const token = await createAuthCookieToken(config);
+  c.header('Set-Cookie', buildAuthCookie(token, isSecureRequest(c.req.url)));
+
   return c.json({ ok: true });
 });
 
@@ -178,13 +187,15 @@ app.use('/api/wishes*', async (c, next) => {
     return c.json({ error: '请先初始化配置。' }, 400);
   }
 
-  const password = (c.req.header('x-wishlist-password') ?? '').trim();
-  if (!password) {
+  const authState = await resolveRequestAuthState(c, config);
+  if (authState === 'missing') {
     return c.json({ error: '缺少验证密码。' }, 401);
   }
 
-  const passed = await verifyPassword(config, password);
-  if (!passed) {
+  if (authState !== 'ok') {
+    if (authState === 'invalid-cookie') {
+      c.header('Set-Cookie', buildClearAuthCookie(isSecureRequest(c.req.url)));
+    }
     return c.json({ error: '验证失败。' }, 401);
   }
 
@@ -423,6 +434,115 @@ async function verifyPassword(config: AppConfig, password: string): Promise<bool
   }
   const inputHash = await hashPassword(password, config.salt);
   return timingSafeEqual(inputHash, config.passwordHash);
+}
+
+async function resolveRequestAuthState(
+  c: {
+    req: {
+      header: (name: string) => string | undefined;
+      url: string;
+    };
+  },
+  config: AppConfig,
+): Promise<RequestAuthState> {
+  const password = (c.req.header('x-wishlist-password') ?? '').trim();
+  if (password) {
+    const passed = await verifyPassword(config, password);
+    return passed ? 'ok' : 'invalid-header';
+  }
+
+  const cookieRaw = c.req.header('cookie') ?? '';
+  const token = readCookie(cookieRaw, AUTH_COOKIE_NAME);
+  if (!token) {
+    return 'missing';
+  }
+
+  const cookiePassed = await verifyAuthCookieToken(config, token);
+  return cookiePassed ? 'ok' : 'invalid-cookie';
+}
+
+async function createAuthCookieToken(config: AppConfig): Promise<string> {
+  const expiresAt = Math.floor(Date.now() / 1000) + AUTH_COOKIE_MAX_AGE_SECONDS;
+  const signature = await hashPassword(`wishlist-auth:${expiresAt}:${config.passwordHash}`, config.salt);
+  return `${expiresAt}.${signature}`;
+}
+
+async function verifyAuthCookieToken(config: AppConfig, token: string): Promise<boolean> {
+  const dotIndex = token.indexOf('.');
+  if (dotIndex <= 0 || dotIndex === token.length - 1) {
+    return false;
+  }
+
+  const expiresAtRaw = token.slice(0, dotIndex);
+  const signature = token.slice(dotIndex + 1);
+  const expiresAt = Number(expiresAtRaw);
+  if (!Number.isInteger(expiresAt)) {
+    return false;
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  if (expiresAt <= now) {
+    return false;
+  }
+
+  if (expiresAt > now + AUTH_COOKIE_MAX_AGE_SECONDS + 60) {
+    return false;
+  }
+
+  const expected = await hashPassword(`wishlist-auth:${expiresAt}:${config.passwordHash}`, config.salt);
+  return timingSafeEqual(signature, expected);
+}
+
+function readCookie(cookieHeader: string, name: string): string {
+  if (!cookieHeader) {
+    return '';
+  }
+
+  const target = `${name}=`;
+  const chunks = cookieHeader.split(';');
+  for (const chunk of chunks) {
+    const part = chunk.trim();
+    if (part.startsWith(target)) {
+      return part.slice(target.length);
+    }
+  }
+  return '';
+}
+
+function isSecureRequest(url: string): boolean {
+  try {
+    return new URL(url).protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function buildAuthCookie(token: string, secure: boolean): string {
+  const parts = [
+    `${AUTH_COOKIE_NAME}=${token}`,
+    'Path=/',
+    `Max-Age=${AUTH_COOKIE_MAX_AGE_SECONDS}`,
+    'HttpOnly',
+    'SameSite=Lax',
+  ];
+  if (secure) {
+    parts.push('Secure');
+  }
+  return parts.join('; ');
+}
+
+function buildClearAuthCookie(secure: boolean): string {
+  const parts = [
+    `${AUTH_COOKIE_NAME}=`,
+    'Path=/',
+    'Max-Age=0',
+    'HttpOnly',
+    'SameSite=Lax',
+  ];
+  if (secure) {
+    parts.push('Secure');
+  }
+  return parts.join('; ');
 }
 
 function timingSafeEqual(a: string, b: string): boolean {

@@ -78,11 +78,11 @@ npm run deploy
 
 ### 公共接口
 
-- `GET /api/public`：获取公开页面基础数据（默认仅返回项目名/许愿人）；请求头携带 `x-wishlist-password` 且验证通过后，才返回随机未实现愿望、已实现列表等私有数据
+- `GET /api/public`：获取公开页面基础数据（默认仅返回项目名/许愿人）；携带 `x-wishlist-password` 或已登录 Cookie（`wishlist_auth`）且验证通过后，返回随机未实现愿望、已实现列表等私有数据
 - `POST /api/setup`：首次初始化（name + password）
-- `POST /api/auth`：密码验证
+- `POST /api/auth`：密码验证，成功后下发 `HttpOnly` 登录 Cookie（`wishlist_auth`）
 
-### 管理接口（需请求头 `x-wishlist-password`）
+### 管理接口（需请求头 `x-wishlist-password` 或已登录 Cookie）
 
 - `GET /api/wishes?page=1&pageSize=8&q=关键词`（支持分页和搜索）
 - `GET /api/wishes/export`：导出备份 JSON
