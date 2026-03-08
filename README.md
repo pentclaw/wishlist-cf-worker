@@ -6,8 +6,9 @@
 
 - 首次初始化：许愿人姓名 + 验证密码
 - 密码验证后增删改查愿望
-- 首页随机弹出未实现愿望
-- 已实现愿望独立清单展示
+- 密码验证后导出/导入备份（JSON）
+- 登录后随机弹出未实现愿望
+- 登录后展示已实现愿望清单
 - PC / 移动端响应式适配
 
 ## 一键部署（Deploy to Cloudflare）
@@ -77,13 +78,15 @@ npm run deploy
 
 ### 公共接口
 
-- `GET /api/public`：获取公开页面数据（许愿人、随机未实现愿望、已实现列表）
+- `GET /api/public`：获取公开页面基础数据（默认仅返回项目名/许愿人）；请求头携带 `x-wishlist-password` 且验证通过后，才返回随机未实现愿望、已实现列表等私有数据
 - `POST /api/setup`：首次初始化（name + password）
 - `POST /api/auth`：密码验证
 
 ### 管理接口（需请求头 `x-wishlist-password`）
 
 - `GET /api/wishes?page=1&pageSize=8&q=关键词`（支持分页和搜索）
+- `GET /api/wishes/export`：导出备份 JSON
+- `POST /api/wishes/import`：导入备份 JSON（`mode` 支持 `replace` 或 `merge`）
 - `POST /api/wishes`
 - `PUT /api/wishes/:id`
 - `DELETE /api/wishes/:id`

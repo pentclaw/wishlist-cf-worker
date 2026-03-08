@@ -162,6 +162,31 @@ export function renderHtml(projectName: string): string {
         margin: 28px auto 0;
       }
 
+      .public-hint {
+        display: none;
+        max-width: 760px;
+        margin: 28px auto 0;
+        text-align: center;
+        gap: 12px;
+      }
+
+      .public-hint-visual {
+        width: min(100%, 360px);
+        margin: 6px auto 0;
+        display: block;
+      }
+
+      .public-hint-title {
+        margin: 8px 0 0;
+        font-size: clamp(1.2rem, 1.6vw + 0.8rem, 1.8rem);
+      }
+
+      .public-hint-desc {
+        margin: 6px auto 0;
+        max-width: 44ch;
+        color: var(--muted);
+      }
+
       .form {
         display: grid;
         gap: 12px;
@@ -282,6 +307,19 @@ export function renderHtml(projectName: string): string {
         margin-bottom: 12px;
       }
 
+      .backup-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      .backup-modes {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
       .search-form {
         display: flex;
         gap: 8px;
@@ -352,6 +390,22 @@ export function renderHtml(projectName: string): string {
         </form>
       </section>
 
+      <section class="public-hint card" id="publicHint">
+        <img
+          class="public-hint-visual"
+          src="https://raw.githubusercontent.com/balazser/undraw-svg-collection/main/svgs/authentication.svg"
+          alt="卡通风格登录验证插画"
+          loading="lazy"
+        />
+        <h2 class="public-hint-title">这是私密愿望清单</h2>
+        <p class="public-hint-desc" id="publicHintDesc">
+          出于隐私保护，未登录状态下仅展示提示信息。请进入管理台并验证密码后查看完整内容。
+        </p>
+        <div>
+          <button class="button" type="button" id="goLogin">进入管理台登录</button>
+        </div>
+      </section>
+
       <main class="layout" id="mainLayout" style="display:none;">
         <section class="card">
           <h2>今日随机种草</h2>
@@ -415,6 +469,30 @@ export function renderHtml(projectName: string): string {
         </section>
 
         <section class="card" style="margin-top:12px;">
+          <h3>备份与恢复</h3>
+          <p class="summary">导出和导入都需要先登录管理台。导入支持覆盖和合并模式。</p>
+          <div class="backup-row">
+            <button type="button" class="button secondary" id="exportData">导出 JSON 备份</button>
+          </div>
+          <div class="backup-row">
+            <input id="importFile" type="file" accept=".json,application/json" />
+            <span class="manage-meta" id="importFileName">未选择文件</span>
+          </div>
+          <div class="backup-row backup-modes">
+            <label class="inline">
+              <input type="radio" name="importMode" value="replace" checked />
+              覆盖现有数据
+            </label>
+            <label class="inline">
+              <input type="radio" name="importMode" value="merge" />
+              合并到现有数据
+            </label>
+          </div>
+          <button type="button" class="button" id="importData">开始导入</button>
+          <p class="status" id="backupStatus"></p>
+        </section>
+
+        <section class="card" style="margin-top:12px;">
           <h3>全部愿望</h3>
           <div class="manage-toolbar">
             <form id="searchForm" class="search-form">
@@ -437,6 +515,7 @@ export function renderHtml(projectName: string): string {
     <script>
       const state = {
         hasConfig: false,
+        hasPrivateData: false,
         ownerName: '',
         password: '',
         authed: false,
@@ -447,11 +526,15 @@ export function renderHtml(projectName: string): string {
         manageTotal: 0,
         manageTotalPages: 0,
         randomWish: null,
-        completedWishes: []
+        completedWishes: [],
+        pendingBackup: null
       };
 
       const ownerNameEl = document.getElementById('ownerName');
       const setupCard = document.getElementById('setupCard');
+      const publicHint = document.getElementById('publicHint');
+      const publicHintDesc = document.getElementById('publicHintDesc');
+      const goLogin = document.getElementById('goLogin');
       const setupForm = document.getElementById('setupForm');
       const setupStatus = document.getElementById('setupStatus');
       const mainLayout = document.getElementById('mainLayout');
@@ -482,6 +565,11 @@ export function renderHtml(projectName: string): string {
       const pagerInfo = document.getElementById('pagerInfo');
       const prevPage = document.getElementById('prevPage');
       const nextPage = document.getElementById('nextPage');
+      const exportData = document.getElementById('exportData');
+      const importFile = document.getElementById('importFile');
+      const importFileName = document.getElementById('importFileName');
+      const importData = document.getElementById('importData');
+      const backupStatus = document.getElementById('backupStatus');
 
       function setText(el, value) {
         if (el) {
@@ -495,6 +583,13 @@ export function renderHtml(projectName: string): string {
           headers['content-type'] = 'application/json';
         }
         return headers;
+      }
+
+      function publicHeaders() {
+        if (!state.authed || !state.password) {
+          return {};
+        }
+        return { 'x-wishlist-password': state.password };
       }
 
       async function fetchJson(url, options) {
@@ -514,6 +609,14 @@ export function renderHtml(projectName: string): string {
 
       function renderCompleted() {
         completedList.innerHTML = '';
+        if (!state.hasPrivateData) {
+          const p = document.createElement('p');
+          p.className = 'empty';
+          p.textContent = '登录后可查看已实现愿望。';
+          completedList.appendChild(p);
+          return;
+        }
+
         if (!state.completedWishes.length) {
           const p = document.createElement('p');
           p.className = 'empty';
@@ -546,6 +649,11 @@ export function renderHtml(projectName: string): string {
       }
 
       function showRandomWish() {
+        if (!state.hasPrivateData) {
+          setText(randomSummary, '登录后可查看未实现愿望。');
+          return;
+        }
+
         if (!state.randomWish) {
           setText(randomSummary, '目前没有未实现愿望。');
           return;
@@ -569,8 +677,11 @@ export function renderHtml(projectName: string): string {
       }
 
       async function loadPublicState(showPopup) {
-        const data = await fetchJson('/api/public');
+        const data = await fetchJson('/api/public', {
+          headers: publicHeaders()
+        });
         state.hasConfig = Boolean(data.hasConfig);
+        state.hasPrivateData = Boolean(data.authenticated);
         state.ownerName = data.ownerName || '';
         state.randomWish = data.randomWish || null;
         state.completedWishes = data.completedWishes || [];
@@ -580,11 +691,24 @@ export function renderHtml(projectName: string): string {
 
         if (!state.hasConfig) {
           setupCard.style.display = 'block';
+          publicHint.style.display = 'none';
           mainLayout.style.display = 'none';
           return;
         }
 
         setupCard.style.display = 'none';
+        if (!state.hasPrivateData) {
+          publicHint.style.display = 'grid';
+          if (publicHintDesc) {
+            publicHintDesc.textContent =
+              state.ownerName + ' 的愿望清单已开启隐私模式，登录后可查看和管理内容。';
+          }
+          mainLayout.style.display = 'none';
+          setText(randomSummary, '登录后可查看未实现愿望。');
+          return;
+        }
+
+        publicHint.style.display = 'none';
         mainLayout.style.display = 'grid';
         renderCompleted();
 
@@ -622,6 +746,74 @@ export function renderHtml(projectName: string): string {
         state.manageTotalPages = Number(pagination.totalPages) || 0;
         renderManageList();
         renderPager();
+      }
+
+      function makeBackupFilename() {
+        return 'wishlist-backup-' + new Date().toISOString().replace(/[:.]/g, '-') + '.json';
+      }
+
+      function getImportMode() {
+        const modeInput = document.querySelector('input[name="importMode"]:checked');
+        return modeInput && modeInput.value === 'merge' ? 'merge' : 'replace';
+      }
+
+      async function readBackupFile(file) {
+        const text = await file.text();
+        let parsed = null;
+        try {
+          parsed = JSON.parse(text);
+        } catch (err) {
+          throw new Error('备份文件不是合法 JSON。');
+        }
+        if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.wishes)) {
+          throw new Error('备份文件格式错误，缺少 wishes 数组。');
+        }
+        return parsed;
+      }
+
+      async function exportBackup() {
+        const data = await fetchJson('/api/wishes/export', {
+          headers: authHeaders(false)
+        });
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = makeBackupFilename();
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(link.href);
+      }
+
+      async function importBackup() {
+        if (!state.pendingBackup) {
+          throw new Error('请先选择备份文件。');
+        }
+
+        const mode = getImportMode();
+        if (mode === 'replace') {
+          const confirmed = window.confirm('覆盖导入会替换当前全部愿望，确定继续吗？');
+          if (!confirmed) {
+            return null;
+          }
+        }
+
+        const result = await fetchJson('/api/wishes/import', {
+          method: 'POST',
+          headers: authHeaders(true),
+          body: JSON.stringify({
+            mode: mode,
+            backup: state.pendingBackup
+          })
+        });
+
+        state.managePage = 1;
+        await Promise.all([
+          loadManageWishes(),
+          loadPublicState(false)
+        ]);
+
+        return result;
       }
 
       function renderManageList() {
@@ -810,6 +1002,10 @@ export function renderHtml(projectName: string): string {
         openManagerPanel();
       });
 
+      goLogin.addEventListener('click', function() {
+        openManagerPanel();
+      });
+
       closeManager.addEventListener('click', closeManagerPanel);
       managerMask.addEventListener('click', closeManagerPanel);
 
@@ -823,7 +1019,11 @@ export function renderHtml(projectName: string): string {
           loginBox.style.display = 'none';
           managerBody.style.display = 'block';
           setText(loginStatus, '');
-          await loadManageWishes();
+          setText(backupStatus, '');
+          await Promise.all([
+            loadManageWishes(),
+            loadPublicState(false)
+          ]);
         } catch (err) {
           setText(loginStatus, err.message);
         }
@@ -904,6 +1104,55 @@ export function renderHtml(projectName: string): string {
           await loadManageWishes();
         } catch (err) {
           window.alert(err.message);
+        }
+      });
+
+      exportData.addEventListener('click', async function() {
+        try {
+          setText(backupStatus, '正在导出备份...');
+          await exportBackup();
+          setText(backupStatus, '导出成功，请妥善保存备份文件。');
+        } catch (err) {
+          setText(backupStatus, err.message);
+        }
+      });
+
+      importFile.addEventListener('change', async function() {
+        const file = importFile.files && importFile.files[0];
+        if (!file) {
+          state.pendingBackup = null;
+          setText(importFileName, '未选择文件');
+          return;
+        }
+
+        try {
+          const parsed = await readBackupFile(file);
+          state.pendingBackup = parsed;
+          setText(importFileName, file.name);
+          setText(backupStatus, '已加载备份：共 ' + parsed.wishes.length + ' 条记录。');
+        } catch (err) {
+          state.pendingBackup = null;
+          importFile.value = '';
+          setText(importFileName, '未选择文件');
+          setText(backupStatus, err.message);
+        }
+      });
+
+      importData.addEventListener('click', async function() {
+        try {
+          setText(backupStatus, '正在导入备份...');
+          const result = await importBackup();
+          if (!result) {
+            setText(backupStatus, '已取消导入。');
+            return;
+          }
+          const overwriteText = result.mode === 'merge' ? '，覆盖同 ID ' + result.overwrittenCount + ' 条' : '';
+          setText(
+            backupStatus,
+            '导入完成：接收 ' + result.acceptedCount + ' 条，当前共 ' + result.totalAfter + ' 条' + overwriteText + '。',
+          );
+        } catch (err) {
+          setText(backupStatus, err.message);
         }
       });
 

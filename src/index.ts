@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { renderHtml } from './ui';
+import { renderHtml } from './ui.js';
 
 type Bindings = {
   WISHLIST_KV: KVNamespace;
@@ -26,9 +26,24 @@ type WishState = {
   wishes: Wish[];
 };
 
+type WishExportPayload = {
+  version: number;
+  exportedAt: string;
+  projectName: string;
+  ownerName: string;
+  wishes: Wish[];
+};
+
+type WishImportMode = 'replace' | 'merge';
+
 const PROJECT_NAME = '♥️の种草';
 const CONFIG_KEY = 'wishlist:config';
 const WISHES_KEY = 'wishlist:wishes';
+const BACKUP_VERSION = 1;
+const MAX_IMPORT_WISHES = 5000;
+const MAX_WISH_ID_LENGTH = 128;
+const MAX_WISH_TITLE_LENGTH = 120;
+const MAX_WISH_DESCRIPTION_LENGTH = 2000;
 
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -38,6 +53,38 @@ app.get('/', (c) => {
 
 app.get('/api/public', async (c) => {
   const config = await getConfig(c.env.WISHLIST_KV);
+  if (!config) {
+    return c.json({
+      projectName: PROJECT_NAME,
+      hasConfig: false,
+      ownerName: '',
+      authenticated: false,
+      randomWish: null,
+      completedWishes: [],
+      unfinishedCount: 0,
+      totalCount: 0,
+    });
+  }
+
+  const password = (c.req.header('x-wishlist-password') ?? '').trim();
+  if (!password) {
+    return c.json({
+      projectName: PROJECT_NAME,
+      hasConfig: true,
+      ownerName: config.name,
+      authenticated: false,
+      randomWish: null,
+      completedWishes: [],
+      unfinishedCount: 0,
+      totalCount: 0,
+    });
+  }
+
+  const passed = await verifyPassword(config, password);
+  if (!passed) {
+    return c.json({ error: '验证失败。' }, 401);
+  }
+
   const state = await loadWishState(c.env.WISHLIST_KV);
 
   const completedWishes = state.wishes
@@ -52,8 +99,9 @@ app.get('/api/public', async (c) => {
 
   return c.json({
     projectName: PROJECT_NAME,
-    hasConfig: Boolean(config),
-    ownerName: config?.name ?? '',
+    hasConfig: true,
+    ownerName: config.name,
+    authenticated: true,
     randomWish,
     completedWishes,
     unfinishedCount: unfinishedWishes.length,
@@ -175,6 +223,68 @@ app.get('/api/wishes', async (c) => {
     query: {
       q,
     },
+  });
+});
+
+app.get('/api/wishes/export', async (c) => {
+  const config = await getConfig(c.env.WISHLIST_KV);
+  const state = await loadWishState(c.env.WISHLIST_KV);
+
+  const payload: WishExportPayload = {
+    version: BACKUP_VERSION,
+    exportedAt: new Date().toISOString(),
+    projectName: PROJECT_NAME,
+    ownerName: config?.name ?? '',
+    wishes: [...state.wishes].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
+  };
+
+  return c.json(payload);
+});
+
+app.post('/api/wishes/import', async (c) => {
+  const body = await readJson<{ backup?: unknown; mode?: unknown }>(c);
+  if (!body) {
+    return c.json({ error: '请求体必须为 JSON。' }, 400);
+  }
+
+  const mode = parseImportMode(body.mode);
+  if (!mode) {
+    return c.json({ error: '导入模式无效，仅支持 replace 或 merge。' }, 400);
+  }
+
+  const importedWishes = parseImportedWishes(body.backup ?? body);
+  if (!importedWishes) {
+    return c.json({ error: '备份文件格式无效。' }, 400);
+  }
+
+  const dedupedImported = dedupeWishesById(importedWishes);
+  const state = await loadWishState(c.env.WISHLIST_KV);
+  const previousTotal = state.wishes.length;
+  let mergedOverwritten = 0;
+
+  if (mode === 'replace') {
+    state.wishes = dedupedImported;
+  } else {
+    const merged = new Map(state.wishes.map((wish) => [wish.id, wish] as const));
+    for (const wish of dedupedImported) {
+      if (merged.has(wish.id)) {
+        mergedOverwritten += 1;
+      }
+      merged.set(wish.id, wish);
+    }
+    state.wishes = [...merged.values()].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+
+  await saveWishState(c.env.WISHLIST_KV, state);
+
+  return c.json({
+    ok: true,
+    mode,
+    importedCount: importedWishes.length,
+    acceptedCount: dedupedImported.length,
+    overwrittenCount: mergedOverwritten,
+    totalBefore: previousTotal,
+    totalAfter: state.wishes.length,
   });
 });
 
@@ -345,6 +455,102 @@ function normalizePositiveInt(
     return fallback;
   }
   return Math.min(value, max);
+}
+
+function parseImportMode(raw: unknown): WishImportMode | null {
+  if (raw === 'replace' || raw === 'merge') {
+    return raw;
+  }
+  return null;
+}
+
+function parseImportedWishes(raw: unknown): Wish[] | null {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+  const wishes = (raw as { wishes?: unknown }).wishes;
+  if (!Array.isArray(wishes) || wishes.length > MAX_IMPORT_WISHES) {
+    return null;
+  }
+
+  const now = new Date().toISOString();
+  const normalized: Wish[] = [];
+  for (const item of wishes) {
+    const wish = normalizeImportedWish(item, now);
+    if (!wish) {
+      return null;
+    }
+    normalized.push(wish);
+  }
+
+  return normalized;
+}
+
+function normalizeImportedWish(raw: unknown, fallbackTime: string): Wish | null {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+  const input = raw as Record<string, unknown>;
+
+  const title = typeof input.title === 'string' ? input.title.trim() : '';
+  if (!title || title.length > MAX_WISH_TITLE_LENGTH) {
+    return null;
+  }
+
+  const description = typeof input.description === 'string' ? input.description.trim() : '';
+  if (description.length > MAX_WISH_DESCRIPTION_LENGTH) {
+    return null;
+  }
+
+  const done = typeof input.done === 'boolean' ? input.done : false;
+  const createdAt = normalizeDateString(input.createdAt, fallbackTime);
+  const updatedAt = normalizeDateString(input.updatedAt, createdAt);
+  const completedAt = done
+    ? normalizeDateString(input.completedAt, updatedAt)
+    : undefined;
+  const normalizedId = typeof input.id === 'string' ? input.id.trim() : '';
+  const id =
+    normalizedId && normalizedId.length <= MAX_WISH_ID_LENGTH
+      ? normalizedId
+      : crypto.randomUUID();
+
+  const wish: Wish = {
+    id,
+    title,
+    description,
+    done,
+    createdAt,
+    updatedAt,
+  };
+
+  if (completedAt) {
+    wish.completedAt = completedAt;
+  }
+
+  return wish;
+}
+
+function normalizeDateString(raw: unknown, fallback: string): string {
+  if (typeof raw !== 'string') {
+    return fallback;
+  }
+  const value = raw.trim();
+  if (!value) {
+    return fallback;
+  }
+  const ts = Date.parse(value);
+  if (Number.isNaN(ts)) {
+    return fallback;
+  }
+  return new Date(ts).toISOString();
+}
+
+function dedupeWishesById(wishes: Wish[]): Wish[] {
+  const unique = new Map<string, Wish>();
+  for (const wish of wishes) {
+    unique.set(wish.id, wish);
+  }
+  return [...unique.values()].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
 export default app;
