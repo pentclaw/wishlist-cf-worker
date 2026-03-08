@@ -82,7 +82,6 @@ export function renderHtml(projectName: string): string {
         cursor: pointer;
         padding: var(--space-3) var(--space-5);
         line-height: 1.2;
-        transition: transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
       }
 
       .button:focus-visible {
@@ -90,16 +89,9 @@ export function renderHtml(projectName: string): string {
         outline-offset: 2px;
       }
 
-      .button:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 8px 16px rgba(218, 105, 49, 0.22);
-      }
-
       .button:disabled {
         opacity: 0.55;
         cursor: not-allowed;
-        transform: none;
-        box-shadow: none;
       }
 
       .button.secondary {
@@ -134,12 +126,6 @@ export function renderHtml(projectName: string): string {
         cursor: pointer;
         font: inherit;
         font-weight: 700;
-        transition: transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
-      }
-
-      .nav-button:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 6px 14px rgba(115, 65, 40, 0.18);
       }
 
       .nav-button.active {
@@ -151,8 +137,6 @@ export function renderHtml(projectName: string): string {
       .nav-button:disabled {
         opacity: 0.55;
         cursor: not-allowed;
-        transform: none;
-        box-shadow: none;
       }
 
       .panel-stack {
