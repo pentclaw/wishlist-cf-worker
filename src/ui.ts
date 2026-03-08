@@ -473,6 +473,10 @@ export function renderHtml(projectName: string): string {
               <input type="checkbox" id="replaceConfirm" />
               我已确认：覆盖模式会替换全部愿望
             </label>
+            <label class="field" style="width: 100%;">
+              <span>输入“确认覆盖”后才允许覆盖导入</span>
+              <input id="replaceConfirmText" placeholder="请输入：确认覆盖" />
+            </label>
           </div>
           <button type="button" class="button" id="importData">开始导入</button>
           <p class="status" id="backupStatus"></p>
@@ -489,6 +493,9 @@ export function renderHtml(projectName: string): string {
             <div class="manage-meta" id="manageMeta">共 0 条</div>
           </div>
           <p class="status" id="manageStatus"></p>
+          <div class="backup-row" id="manageStatusActions" style="display:none;">
+            <button type="button" class="button ghost" id="undoDelete">撤销删除</button>
+          </div>
           <div class="manage-list" id="manageList"></div>
           <div class="pager">
             <button type="button" class="button secondary" id="prevPage">上一页</button>
@@ -515,6 +522,7 @@ export function renderHtml(projectName: string): string {
         unfinishedCount: 0,
         editingWishId: '',
         pendingDeleteWishId: '',
+        scheduledDeleteWishId: '',
         randomWish: null,
         completedWishes: [],
         pendingBackup: null
@@ -553,8 +561,13 @@ export function renderHtml(projectName: string): string {
       const importFile = document.getElementById('importFile');
       const importFileName = document.getElementById('importFileName');
       const importData = document.getElementById('importData');
+      const importModeInputs = Array.from(document.querySelectorAll('input[name="importMode"]'));
       const replaceConfirm = document.getElementById('replaceConfirm');
+      const replaceConfirmText = document.getElementById('replaceConfirmText');
       const backupStatus = document.getElementById('backupStatus');
+      const manageStatusActions = document.getElementById('manageStatusActions');
+      const undoDelete = document.getElementById('undoDelete');
+      let scheduledDeleteTimer = null;
 
       function setText(el, value) {
         if (el) {
@@ -833,11 +846,14 @@ export function renderHtml(projectName: string): string {
         }
 
         const mode = getImportMode();
-        if (mode === 'replace' && replaceConfirm && !replaceConfirm.checked) {
-          throw new Error('覆盖导入前请勾选确认选项。');
-        }
-        if (replaceConfirm && mode !== 'replace') {
-          replaceConfirm.checked = false;
+        const confirmText = replaceConfirmText ? replaceConfirmText.value.trim() : '';
+        if (mode === 'replace') {
+          if (replaceConfirm && !replaceConfirm.checked) {
+            throw new Error('覆盖导入前请勾选确认选项。');
+          }
+          if (confirmText !== '确认覆盖') {
+            throw new Error('覆盖导入前请输入“确认覆盖”。');
+          }
         }
 
         const result = await fetchJson('/api/wishes/import', {
@@ -858,6 +874,9 @@ export function renderHtml(projectName: string): string {
         if (replaceConfirm) {
           replaceConfirm.checked = false;
         }
+        if (replaceConfirmText) {
+          replaceConfirmText.value = '';
+        }
 
         return result;
       }
@@ -866,7 +885,27 @@ export function renderHtml(projectName: string): string {
         setText(manageStatus, message);
       }
 
+      function showUndoDeleteAction(show) {
+        if (!manageStatusActions) {
+          return;
+        }
+        manageStatusActions.style.display = show ? 'flex' : 'none';
+      }
+
+      function clearScheduledDelete(shouldRender) {
+        if (scheduledDeleteTimer) {
+          clearTimeout(scheduledDeleteTimer);
+          scheduledDeleteTimer = null;
+        }
+        state.scheduledDeleteWishId = '';
+        showUndoDeleteAction(false);
+        if (shouldRender) {
+          renderManageList();
+        }
+      }
+
       function startEditWish(wishId) {
+        clearScheduledDelete(false);
         state.pendingDeleteWishId = '';
         state.editingWishId = wishId;
         setManageMessage('');
@@ -878,15 +917,29 @@ export function renderHtml(projectName: string): string {
         renderManageList();
       }
 
+      function scheduleDeleteWish(wish) {
+        clearScheduledDelete(false);
+        state.scheduledDeleteWishId = wish.id;
+        setManageMessage('已进入删除倒计时（6 秒）：' + wish.title + '。可点击“撤销删除”。');
+        showUndoDeleteAction(true);
+        renderManageList();
+
+        scheduledDeleteTimer = setTimeout(function() {
+          scheduledDeleteTimer = null;
+          deleteWish(wish.id);
+        }, 6000);
+      }
+
       function queueDeleteWish(wish) {
+        clearScheduledDelete(false);
         state.editingWishId = '';
         if (state.pendingDeleteWishId === wish.id) {
           state.pendingDeleteWishId = '';
-          deleteWish(wish.id);
+          scheduleDeleteWish(wish);
           return;
         }
         state.pendingDeleteWishId = wish.id;
-        setManageMessage('再次点击“确认删除”即可删除：' + wish.title);
+        setManageMessage('再次点击“确认删除”会进入 6 秒倒计时，期间可撤销：' + wish.title);
         renderManageList();
       }
 
@@ -898,6 +951,11 @@ export function renderHtml(projectName: string): string {
         renderManageList();
       }
 
+      function undoScheduledDelete() {
+        clearScheduledDelete(true);
+        setManageMessage('已撤销删除。');
+      }
+
       async function saveInlineEdit(wishId, title, description) {
         const nextTitle = title.trim();
         if (!nextTitle) {
@@ -906,6 +964,7 @@ export function renderHtml(projectName: string): string {
         }
 
         try {
+          clearScheduledDelete(false);
           await fetchJson('/api/wishes/' + encodeURIComponent(wishId), {
             method: 'PUT',
             headers: authHeaders(true),
@@ -927,6 +986,7 @@ export function renderHtml(projectName: string): string {
 
       async function toggleWishDone(wish) {
         try {
+          clearScheduledDelete(false);
           await fetchJson('/api/wishes/' + encodeURIComponent(wish.id), {
             method: 'PUT',
             headers: authHeaders(true),
@@ -992,8 +1052,10 @@ export function renderHtml(projectName: string): string {
 
           const deleteBtn = document.createElement('button');
           const pendingDelete = state.pendingDeleteWishId === wish.id;
-          deleteBtn.className = pendingDelete ? 'button danger' : 'button ghost';
-          deleteBtn.textContent = pendingDelete ? '确认删除' : '删除';
+          const scheduledDelete = state.scheduledDeleteWishId === wish.id;
+          deleteBtn.className = pendingDelete || scheduledDelete ? 'button danger' : 'button ghost';
+          deleteBtn.textContent = scheduledDelete ? '删除倒计时中...' : pendingDelete ? '确认删除' : '删除';
+          deleteBtn.disabled = scheduledDelete;
           deleteBtn.addEventListener('click', function() {
             queueDeleteWish(wish);
           });
@@ -1076,6 +1138,8 @@ export function renderHtml(projectName: string): string {
 
       async function deleteWish(id) {
         try {
+          clearScheduledDelete(false);
+          state.pendingDeleteWishId = '';
           await fetchJson('/api/wishes/' + encodeURIComponent(id), {
             method: 'DELETE',
             headers: authHeaders(false)
@@ -1115,6 +1179,12 @@ export function renderHtml(projectName: string): string {
           setText(randomSummary, err.message);
         }
       });
+
+      if (undoDelete) {
+        undoDelete.addEventListener('click', function() {
+          undoScheduledDelete();
+        });
+      }
 
       navButtons.forEach(function(button) {
         button.addEventListener('click', async function() {
@@ -1265,6 +1335,19 @@ export function renderHtml(projectName: string): string {
           setText(importFileName, '未选择文件');
           setText(backupStatus, err.message);
         }
+      });
+
+      importModeInputs.forEach(function(input) {
+        input.addEventListener('change', function() {
+          if (input.value === 'merge') {
+            if (replaceConfirm) {
+              replaceConfirm.checked = false;
+            }
+            if (replaceConfirmText) {
+              replaceConfirmText.value = '';
+            }
+          }
+        });
       });
 
       importData.addEventListener('click', async function() {

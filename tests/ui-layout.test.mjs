@@ -24,3 +24,10 @@ test('renderHtml should not include popup overlays or browser popup APIs', () =>
   assert.doesNotMatch(html, /window\.alert\(/);
   assert.doesNotMatch(html, /window\.prompt\(/);
 });
+
+test('renderHtml should include inline strong confirmations for risky actions', () => {
+  const html = renderHtml('测试项目');
+
+  assert.match(html, /id="replaceConfirmText"/);
+  assert.match(html, /id="undoDelete"/);
+});
