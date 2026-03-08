@@ -81,7 +81,7 @@ export function renderHtml(projectName: string): string {
         font-weight: 700;
         cursor: pointer;
         padding: var(--space-3) var(--space-5);
-        line-height: 1.2;
+        line-height: 1.35;
       }
 
       .button:focus-visible {
@@ -101,8 +101,8 @@ export function renderHtml(projectName: string): string {
       }
 
       .button.ghost {
-        background: transparent;
-        color: var(--muted);
+        background: var(--surface);
+        color: var(--text);
         border-color: var(--border);
       }
 
@@ -119,7 +119,7 @@ export function renderHtml(projectName: string): string {
 
       .nav-button {
         border: 1px solid var(--border);
-        background: color-mix(in srgb, var(--surface) 90%, var(--primary-soft) 10%);
+        background: var(--surface);
         color: var(--text);
         border-radius: 999px;
         padding: var(--space-2) var(--space-4);
@@ -157,12 +157,12 @@ export function renderHtml(projectName: string): string {
         border: 1px solid var(--border);
         background: rgba(255, 255, 255, 0.88);
         box-shadow: var(--shadow);
-        padding: var(--space-6);
+        padding: var(--space-7);
       }
 
       .card h2,
       .card h3 {
-        margin: 0 0 var(--space-4);
+        margin: 0 0 var(--space-5);
         font-size: 1.15rem;
       }
 
@@ -172,7 +172,8 @@ export function renderHtml(projectName: string): string {
 
       .summary {
         color: var(--muted);
-        margin: 0;
+        margin: 0 0 var(--space-5);
+        line-height: 1.6;
       }
 
       .completed-list,
@@ -224,25 +225,30 @@ export function renderHtml(projectName: string): string {
 
       .form {
         display: grid;
-        gap: var(--space-4);
+        gap: var(--space-5);
       }
 
       .field {
         display: grid;
-        gap: var(--space-2);
+        gap: var(--space-3);
       }
 
       label {
         font-weight: 700;
       }
 
-      input,
+      input:not([type='checkbox']):not([type='radio']),
       textarea {
         border: 1px solid var(--border);
         border-radius: 12px;
-        padding: var(--space-3) var(--space-4);
+        padding: var(--space-3) var(--space-5);
         font: inherit;
         background: #fff;
+        line-height: 1.5;
+      }
+
+      .form > .button {
+        justify-self: flex-start;
       }
 
       textarea {
@@ -257,16 +263,16 @@ export function renderHtml(projectName: string): string {
       }
 
       .status {
-        margin: 0;
+        margin: var(--space-1) 0 0;
         color: var(--muted);
-        min-height: 1.2em;
+        min-height: 1.4em;
       }
 
       .wish-actions {
         display: flex;
         flex-wrap: wrap;
-        gap: var(--space-3);
-        margin-top: var(--space-3);
+        gap: var(--space-4);
+        margin-top: var(--space-4);
       }
 
       .wish-actions .button {
@@ -275,23 +281,23 @@ export function renderHtml(projectName: string): string {
       }
 
       .wish-editor {
-        margin-top: var(--space-3);
+        margin-top: var(--space-4);
         border-top: 1px dashed var(--border);
-        padding-top: var(--space-3);
+        padding-top: var(--space-4);
       }
 
       .manage-toolbar {
         display: grid;
-        gap: var(--space-4);
-        margin-bottom: var(--space-4);
+        gap: var(--space-5);
+        margin-bottom: var(--space-5);
       }
 
       .backup-row {
         display: flex;
         flex-wrap: wrap;
         align-items: center;
-        gap: var(--space-3);
-        margin-top: var(--space-3);
+        gap: var(--space-4);
+        margin-top: var(--space-4);
       }
 
       .backup-modes {
@@ -301,7 +307,7 @@ export function renderHtml(projectName: string): string {
 
       .search-form {
         display: flex;
-        gap: var(--space-3);
+        gap: var(--space-4);
       }
 
       .search-input {
@@ -315,11 +321,11 @@ export function renderHtml(projectName: string): string {
       }
 
       .pager {
-        margin-top: var(--space-4);
+        margin-top: var(--space-5);
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: var(--space-3);
+        gap: var(--space-4);
       }
 
       .pager-info {
