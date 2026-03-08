@@ -1271,10 +1271,6 @@ export function renderHtml(projectName: string): string {
         try {
           setText(backupStatus, '正在导入备份...');
           const result = await importBackup();
-          if (!result) {
-            setText(backupStatus, '已取消导入。');
-            return;
-          }
           const overwriteText = result.mode === 'merge' ? '，覆盖同 ID ' + result.overwrittenCount + ' 条' : '';
           setText(
             backupStatus,
