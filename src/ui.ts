@@ -278,56 +278,6 @@ export function renderHtml(projectName: string): string {
         min-height: 1.2em;
       }
 
-      .overlay {
-        position: fixed;
-        inset: 0;
-        background: rgba(52, 32, 18, 0.48);
-        display: none;
-        align-items: center;
-        justify-content: center;
-        padding:
-          max(var(--space-5), env(safe-area-inset-top))
-          max(var(--space-5), env(safe-area-inset-right))
-          max(var(--space-5), env(safe-area-inset-bottom))
-          max(var(--space-5), env(safe-area-inset-left));
-        z-index: 20;
-      }
-
-      .overlay.open {
-        display: flex;
-      }
-
-      .popup {
-        max-width: 420px;
-        width: 100%;
-        background: #fff;
-        border: 1px solid var(--border);
-        border-radius: 16px;
-        padding: var(--space-6);
-      }
-
-      .dialog {
-        max-width: 420px;
-        width: 100%;
-        background: #fff;
-        border: 1px solid var(--border);
-        border-radius: 16px;
-        padding: var(--space-6);
-      }
-
-      .dialog-message {
-        margin: 0;
-        color: var(--text);
-      }
-
-      .dialog-actions {
-        display: flex;
-        justify-content: flex-end;
-        flex-wrap: wrap;
-        gap: var(--space-3);
-        margin-top: var(--space-4);
-      }
-
       .wish-actions {
         display: flex;
         flex-wrap: wrap;
@@ -338,6 +288,12 @@ export function renderHtml(projectName: string): string {
       .wish-actions .button {
         padding: var(--space-1) var(--space-3);
         font-size: 0.86rem;
+      }
+
+      .wish-editor {
+        margin-top: var(--space-3);
+        border-top: 1px dashed var(--border);
+        padding-top: var(--space-3);
       }
 
       .manage-toolbar {
@@ -452,6 +408,11 @@ export function renderHtml(projectName: string): string {
           <h2>今日随机种草</h2>
           <p class="summary" id="randomSummary">正在抽取未实现愿望...</p>
           <button class="button secondary" id="showRandom">再抽一个</button>
+          <article class="wish-item" id="randomCard" style="display:none; margin-top: var(--space-4);">
+            <div class="wish-title" id="randomTitle"></div>
+            <p class="wish-desc" id="randomDesc"></p>
+            <div class="wish-meta" id="randomMeta"></div>
+          </article>
         </section>
 
         <section class="card panel" id="panelCompleted" data-panel="completed">
@@ -508,6 +469,10 @@ export function renderHtml(projectName: string): string {
               <input type="radio" name="importMode" value="merge" />
               合并到现有数据
             </label>
+            <label class="inline">
+              <input type="checkbox" id="replaceConfirm" />
+              我已确认：覆盖模式会替换全部愿望
+            </label>
           </div>
           <button type="button" class="button" id="importData">开始导入</button>
           <p class="status" id="backupStatus"></p>
@@ -523,6 +488,7 @@ export function renderHtml(projectName: string): string {
             </form>
             <div class="manage-meta" id="manageMeta">共 0 条</div>
           </div>
+          <p class="status" id="manageStatus"></p>
           <div class="manage-list" id="manageList"></div>
           <div class="pager">
             <button type="button" class="button secondary" id="prevPage">上一页</button>
@@ -533,35 +499,12 @@ export function renderHtml(projectName: string): string {
       </main>
     </div>
 
-    <div class="overlay" id="randomOverlay">
-      <div class="popup">
-        <h2>随机未实现愿望</h2>
-        <p class="wish-title" id="popupTitle"></p>
-        <p class="wish-desc" id="popupDesc"></p>
-        <div class="wish-actions">
-          <button class="button secondary" id="closeRandom">我记下了</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="overlay" id="confirmOverlay">
-      <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMessage">
-        <h2 id="confirmTitle">请确认操作</h2>
-        <p class="dialog-message" id="confirmMessage"></p>
-        <div class="dialog-actions">
-          <button class="button ghost" id="confirmCancel">取消</button>
-          <button class="button danger" id="confirmOk">确认</button>
-        </div>
-      </div>
-    </div>
-
     <script>
       const state = {
         hasConfig: false,
         hasPrivateData: false,
         ownerName: '',
         password: '',
-        authed: false,
         activePanel: 'random',
         wishes: [],
         manageQuery: '',
@@ -570,6 +513,8 @@ export function renderHtml(projectName: string): string {
         manageTotal: 0,
         manageTotalPages: 0,
         unfinishedCount: 0,
+        editingWishId: '',
+        pendingDeleteWishId: '',
         randomWish: null,
         completedWishes: [],
         pendingBackup: null
@@ -585,15 +530,11 @@ export function renderHtml(projectName: string): string {
       const mainLayout = document.getElementById('mainLayout');
       const completedList = document.getElementById('completedList');
       const randomSummary = document.getElementById('randomSummary');
+      const randomCard = document.getElementById('randomCard');
+      const randomTitle = document.getElementById('randomTitle');
+      const randomDesc = document.getElementById('randomDesc');
+      const randomMeta = document.getElementById('randomMeta');
       const showRandomBtn = document.getElementById('showRandom');
-      const randomOverlay = document.getElementById('randomOverlay');
-      const popupTitle = document.getElementById('popupTitle');
-      const popupDesc = document.getElementById('popupDesc');
-      const closeRandom = document.getElementById('closeRandom');
-      const confirmOverlay = document.getElementById('confirmOverlay');
-      const confirmMessage = document.getElementById('confirmMessage');
-      const confirmCancel = document.getElementById('confirmCancel');
-      const confirmOk = document.getElementById('confirmOk');
       const loginForm = document.getElementById('loginForm');
       const loginPassword = document.getElementById('loginPassword');
       const loginStatus = document.getElementById('loginStatus');
@@ -604,6 +545,7 @@ export function renderHtml(projectName: string): string {
       const searchInput = document.getElementById('searchInput');
       const clearSearch = document.getElementById('clearSearch');
       const manageMeta = document.getElementById('manageMeta');
+      const manageStatus = document.getElementById('manageStatus');
       const pagerInfo = document.getElementById('pagerInfo');
       const prevPage = document.getElementById('prevPage');
       const nextPage = document.getElementById('nextPage');
@@ -611,8 +553,8 @@ export function renderHtml(projectName: string): string {
       const importFile = document.getElementById('importFile');
       const importFileName = document.getElementById('importFileName');
       const importData = document.getElementById('importData');
+      const replaceConfirm = document.getElementById('replaceConfirm');
       const backupStatus = document.getElementById('backupStatus');
-      let confirmResolve = null;
 
       function setText(el, value) {
         if (el) {
@@ -750,53 +692,28 @@ export function renderHtml(projectName: string): string {
         });
       }
 
-      function showRandomWish() {
+      function renderRandomWish() {
+        if (!randomCard) {
+          return;
+        }
+
         if (!state.hasPrivateData) {
+          randomCard.style.display = 'none';
           setText(randomSummary, '登录后可查看未实现愿望。');
           return;
         }
 
         if (!state.randomWish) {
+          randomCard.style.display = 'none';
           setText(randomSummary, '目前没有未实现愿望。');
           return;
         }
-        setText(popupTitle, state.randomWish.title);
-        setText(popupDesc, state.randomWish.description || '这个愿望还没有补充说明。');
+
+        randomCard.style.display = 'block';
+        setText(randomTitle, state.randomWish.title);
+        setText(randomDesc, state.randomWish.description || '这个愿望还没有补充说明。');
+        setText(randomMeta, '更新于 ' + new Date(state.randomWish.updatedAt).toLocaleString());
         setText(randomSummary, '还有 ' + state.unfinishedCount + ' 个未实现愿望，随机展示中。');
-        randomOverlay.classList.add('open');
-      }
-
-      function closeRandomWish() {
-        randomOverlay.classList.remove('open');
-      }
-
-      function closeConfirmDialog(confirmed) {
-        if (confirmOverlay) {
-          confirmOverlay.classList.remove('open');
-        }
-        if (confirmResolve) {
-          const done = confirmResolve;
-          confirmResolve = null;
-          done(confirmed);
-        }
-      }
-
-      function openConfirmDialog(message, okText) {
-        return new Promise(function(resolve) {
-          confirmResolve = resolve;
-          if (confirmMessage) {
-            confirmMessage.textContent = message;
-          }
-          if (confirmOk && okText) {
-            confirmOk.textContent = okText;
-          }
-          if (confirmOverlay) {
-            confirmOverlay.classList.add('open');
-          }
-          if (confirmCancel) {
-            confirmCancel.focus();
-          }
-        });
       }
 
       function renderOwner() {
@@ -807,7 +724,7 @@ export function renderHtml(projectName: string): string {
         setText(ownerNameEl, state.ownerName + ' 的愿望清单');
       }
 
-      async function loadPublicState(showPopup) {
+      async function loadPublicState() {
         const data = await fetchJson('/api/public', {
           headers: publicHeaders()
         });
@@ -817,7 +734,6 @@ export function renderHtml(projectName: string): string {
         state.completedWishes = data.completedWishes || [];
         state.unfinishedCount = data.unfinishedCount || 0;
         state.hasPrivateData = Boolean(data.authenticated);
-        state.authed = state.hasPrivateData;
 
         renderOwner();
         syncFeatureNav();
@@ -831,23 +747,17 @@ export function renderHtml(projectName: string): string {
         setupCard.style.display = 'none';
         mainLayout.style.display = 'grid';
         renderCompleted();
+        renderRandomWish();
 
         if (!state.hasPrivateData) {
           if (!isPanelAllowed(state.activePanel)) {
             setActivePanel('login');
           }
-          setText(randomSummary, '登录后可查看未实现愿望。');
           return;
         }
 
         if (state.activePanel === 'login') {
           setActivePanel('random');
-        }
-
-        if (showPopup && state.randomWish) {
-          setTimeout(showRandomWish, 280);
-        } else if (!state.randomWish) {
-          setText(randomSummary, '目前没有未实现愿望。');
         }
       }
 
@@ -923,11 +833,11 @@ export function renderHtml(projectName: string): string {
         }
 
         const mode = getImportMode();
-        if (mode === 'replace') {
-          const confirmed = await openConfirmDialog('覆盖导入会替换当前全部愿望，确定继续吗？', '确认覆盖');
-          if (!confirmed) {
-            return null;
-          }
+        if (mode === 'replace' && replaceConfirm && !replaceConfirm.checked) {
+          throw new Error('覆盖导入前请勾选确认选项。');
+        }
+        if (replaceConfirm && mode !== 'replace') {
+          replaceConfirm.checked = false;
         }
 
         const result = await fetchJson('/api/wishes/import', {
@@ -942,10 +852,95 @@ export function renderHtml(projectName: string): string {
         state.managePage = 1;
         await Promise.all([
           loadManageWishes(),
-          loadPublicState(false)
+          loadPublicState()
         ]);
 
+        if (replaceConfirm) {
+          replaceConfirm.checked = false;
+        }
+
         return result;
+      }
+
+      function setManageMessage(message) {
+        setText(manageStatus, message);
+      }
+
+      function startEditWish(wishId) {
+        state.pendingDeleteWishId = '';
+        state.editingWishId = wishId;
+        setManageMessage('');
+        renderManageList();
+      }
+
+      function cancelEditWish() {
+        state.editingWishId = '';
+        renderManageList();
+      }
+
+      function queueDeleteWish(wish) {
+        state.editingWishId = '';
+        if (state.pendingDeleteWishId === wish.id) {
+          state.pendingDeleteWishId = '';
+          deleteWish(wish.id);
+          return;
+        }
+        state.pendingDeleteWishId = wish.id;
+        setManageMessage('再次点击“确认删除”即可删除：' + wish.title);
+        renderManageList();
+      }
+
+      function clearPendingDelete() {
+        if (!state.pendingDeleteWishId) {
+          return;
+        }
+        state.pendingDeleteWishId = '';
+        renderManageList();
+      }
+
+      async function saveInlineEdit(wishId, title, description) {
+        const nextTitle = title.trim();
+        if (!nextTitle) {
+          setManageMessage('项目名称不能为空。');
+          return;
+        }
+
+        try {
+          await fetchJson('/api/wishes/' + encodeURIComponent(wishId), {
+            method: 'PUT',
+            headers: authHeaders(true),
+            body: JSON.stringify({
+              title: nextTitle,
+              description: description.trim()
+            })
+          });
+          state.editingWishId = '';
+          setManageMessage('愿望已更新。');
+          await Promise.all([
+            loadManageWishes(),
+            loadPublicState()
+          ]);
+        } catch (err) {
+          setManageMessage(err.message);
+        }
+      }
+
+      async function toggleWishDone(wish) {
+        try {
+          await fetchJson('/api/wishes/' + encodeURIComponent(wish.id), {
+            method: 'PUT',
+            headers: authHeaders(true),
+            body: JSON.stringify({ done: !wish.done })
+          });
+          clearPendingDelete();
+          setManageMessage('');
+          await Promise.all([
+            loadManageWishes(),
+            loadPublicState()
+          ]);
+        } catch (err) {
+          setManageMessage(err.message);
+        }
       }
 
       function renderManageList() {
@@ -981,43 +976,26 @@ export function renderHtml(projectName: string): string {
           toggleBtn.className = 'button secondary';
           toggleBtn.textContent = wish.done ? '标记未实现' : '标记已实现';
           toggleBtn.addEventListener('click', function() {
-            updateWish(wish.id, {
-              done: !wish.done
-            });
+            toggleWishDone(wish);
           });
 
           const editBtn = document.createElement('button');
           editBtn.className = 'button ghost';
-          editBtn.textContent = '编辑';
+          editBtn.textContent = state.editingWishId === wish.id ? '收起编辑' : '编辑';
           editBtn.addEventListener('click', function() {
-            const newTitle = window.prompt('修改项目名称', wish.title);
-            if (newTitle === null) {
+            if (state.editingWishId === wish.id) {
+              cancelEditWish();
               return;
             }
-            const nextTitle = newTitle.trim();
-            if (!nextTitle) {
-              window.alert('项目名称不能为空');
-              return;
-            }
-            const newDesc = window.prompt('修改描述', wish.description || '');
-            if (newDesc === null) {
-              return;
-            }
-            updateWish(wish.id, {
-              title: nextTitle,
-              description: newDesc.trim()
-            });
+            startEditWish(wish.id);
           });
 
           const deleteBtn = document.createElement('button');
-          deleteBtn.className = 'button danger';
-          deleteBtn.textContent = '删除';
-          deleteBtn.addEventListener('click', async function() {
-            const confirmed = await openConfirmDialog('确定删除这个愿望吗？该操作不可恢复。', '确认删除');
-            if (!confirmed) {
-              return;
-            }
-            deleteWish(wish.id);
+          const pendingDelete = state.pendingDeleteWishId === wish.id;
+          deleteBtn.className = pendingDelete ? 'button danger' : 'button ghost';
+          deleteBtn.textContent = pendingDelete ? '确认删除' : '删除';
+          deleteBtn.addEventListener('click', function() {
+            queueDeleteWish(wish);
           });
 
           actions.appendChild(toggleBtn);
@@ -1028,6 +1006,45 @@ export function renderHtml(projectName: string): string {
           node.appendChild(desc);
           node.appendChild(meta);
           node.appendChild(actions);
+
+          if (state.editingWishId === wish.id) {
+            const editor = document.createElement('div');
+            editor.className = 'form wish-editor';
+
+            const titleField = document.createElement('input');
+            titleField.value = wish.title;
+            titleField.maxLength = 80;
+            titleField.placeholder = '项目名称';
+
+            const descField = document.createElement('textarea');
+            descField.value = wish.description || '';
+            descField.maxLength = 300;
+            descField.placeholder = '描述';
+
+            const editorActions = document.createElement('div');
+            editorActions.className = 'wish-actions';
+
+            const saveBtn = document.createElement('button');
+            saveBtn.className = 'button secondary';
+            saveBtn.textContent = '保存';
+            saveBtn.addEventListener('click', function() {
+              saveInlineEdit(wish.id, titleField.value, descField.value);
+            });
+
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'button ghost';
+            cancelBtn.textContent = '取消';
+            cancelBtn.addEventListener('click', function() {
+              cancelEditWish();
+            });
+
+            editorActions.appendChild(saveBtn);
+            editorActions.appendChild(cancelBtn);
+            editor.appendChild(titleField);
+            editor.appendChild(descField);
+            editor.appendChild(editorActions);
+            node.appendChild(editor);
+          }
           manageList.appendChild(node);
         });
       }
@@ -1057,34 +1074,19 @@ export function renderHtml(projectName: string): string {
         }
       }
 
-      async function updateWish(id, payload) {
-        try {
-          await fetchJson('/api/wishes/' + encodeURIComponent(id), {
-            method: 'PUT',
-            headers: authHeaders(true),
-            body: JSON.stringify(payload)
-          });
-          await Promise.all([
-            loadManageWishes(),
-            loadPublicState(false)
-          ]);
-        } catch (err) {
-          window.alert(err.message);
-        }
-      }
-
       async function deleteWish(id) {
         try {
           await fetchJson('/api/wishes/' + encodeURIComponent(id), {
             method: 'DELETE',
             headers: authHeaders(false)
           });
+          setManageMessage('愿望已删除。');
           await Promise.all([
             loadManageWishes(),
-            loadPublicState(false)
+            loadPublicState()
           ]);
         } catch (err) {
-          window.alert(err.message);
+          setManageMessage(err.message);
         }
       }
 
@@ -1100,7 +1102,7 @@ export function renderHtml(projectName: string): string {
             body: JSON.stringify({ name: name, password: password })
           });
           setText(setupStatus, '配置已保存。你可以通过导航栏进入登录和管理功能。');
-          await loadPublicState(true);
+          await loadPublicState();
         } catch (err) {
           setText(setupStatus, err.message);
         }
@@ -1108,33 +1110,9 @@ export function renderHtml(projectName: string): string {
 
       showRandomBtn.addEventListener('click', async function() {
         try {
-          await loadPublicState(false);
-          showRandomWish();
+          await loadPublicState();
         } catch (err) {
-          window.alert(err.message);
-        }
-      });
-
-      closeRandom.addEventListener('click', closeRandomWish);
-      randomOverlay.addEventListener('click', function(event) {
-        if (event.target === randomOverlay) {
-          closeRandomWish();
-        }
-      });
-      confirmCancel.addEventListener('click', function() {
-        closeConfirmDialog(false);
-      });
-      confirmOk.addEventListener('click', function() {
-        closeConfirmDialog(true);
-      });
-      confirmOverlay.addEventListener('click', function(event) {
-        if (event.target === confirmOverlay) {
-          closeConfirmDialog(false);
-        }
-      });
-      document.addEventListener('keydown', function(event) {
-        if (event.key === 'Escape' && confirmOverlay.classList.contains('open')) {
-          closeConfirmDialog(false);
+          setText(randomSummary, err.message);
         }
       });
 
@@ -1151,7 +1129,7 @@ export function renderHtml(projectName: string): string {
             try {
               await loadManageWishes();
             } catch (err) {
-              window.alert(err.message);
+              setManageMessage(err.message);
             }
           }
         });
@@ -1163,13 +1141,12 @@ export function renderHtml(projectName: string): string {
         try {
           await verifyPassword(password);
           state.password = password;
-          state.authed = true;
           state.hasPrivateData = true;
           setText(loginStatus, '');
           setText(backupStatus, '');
           await Promise.all([
             loadManageWishes(),
-            loadPublicState(false)
+            loadPublicState()
           ]);
           setActivePanel('create');
         } catch (err) {
@@ -1202,7 +1179,7 @@ export function renderHtml(projectName: string): string {
           setText(createStatus, '已创建愿望。');
           await Promise.all([
             loadManageWishes(),
-            loadPublicState(false)
+            loadPublicState()
           ]);
         } catch (err) {
           setText(createStatus, err.message);
@@ -1215,8 +1192,9 @@ export function renderHtml(projectName: string): string {
         state.managePage = 1;
         try {
           await loadManageWishes();
+          setManageMessage('');
         } catch (err) {
-          window.alert(err.message);
+          setManageMessage(err.message);
         }
       });
 
@@ -1226,8 +1204,9 @@ export function renderHtml(projectName: string): string {
         state.managePage = 1;
         try {
           await loadManageWishes();
+          setManageMessage('');
         } catch (err) {
-          window.alert(err.message);
+          setManageMessage(err.message);
         }
       });
 
@@ -1238,8 +1217,9 @@ export function renderHtml(projectName: string): string {
         state.managePage -= 1;
         try {
           await loadManageWishes();
+          setManageMessage('');
         } catch (err) {
-          window.alert(err.message);
+          setManageMessage(err.message);
         }
       });
 
@@ -1250,8 +1230,9 @@ export function renderHtml(projectName: string): string {
         state.managePage += 1;
         try {
           await loadManageWishes();
+          setManageMessage('');
         } catch (err) {
-          window.alert(err.message);
+          setManageMessage(err.message);
         }
       });
 
@@ -1304,7 +1285,7 @@ export function renderHtml(projectName: string): string {
         }
       });
 
-      loadPublicState(true).catch(function(err) {
+      loadPublicState().catch(function(err) {
         setText(ownerNameEl, '加载失败：' + err.message);
       });
     </script>

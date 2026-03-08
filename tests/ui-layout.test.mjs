@@ -15,3 +15,12 @@ test('renderHtml should expose inline feature navigation instead of manager draw
   assert.doesNotMatch(html, /id="manager"/);
   assert.doesNotMatch(html, /id="managerMask"/);
 });
+
+test('renderHtml should not include popup overlays or browser popup APIs', () => {
+  const html = renderHtml('测试项目');
+
+  assert.doesNotMatch(html, /id="randomOverlay"/);
+  assert.doesNotMatch(html, /id="confirmOverlay"/);
+  assert.doesNotMatch(html, /window\.alert\(/);
+  assert.doesNotMatch(html, /window\.prompt\(/);
+});
