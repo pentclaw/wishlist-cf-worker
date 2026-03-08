@@ -12,7 +12,7 @@
 
 ## 一键部署（Deploy to Cloudflare）
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/<your-org>/<your-repo>)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/pentclaw/wishlist-cf-worker)
 
 使用说明：
 
