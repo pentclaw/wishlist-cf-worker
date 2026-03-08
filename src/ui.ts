@@ -118,10 +118,54 @@ export function renderHtml(projectName: string): string {
         background: var(--danger);
       }
 
-      .layout {
+      .feature-nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-3);
+        margin-bottom: var(--space-5);
+      }
+
+      .nav-button {
+        border: 1px solid var(--border);
+        background: color-mix(in srgb, var(--surface) 90%, var(--primary-soft) 10%);
+        color: var(--text);
+        border-radius: 999px;
+        padding: var(--space-2) var(--space-4);
+        cursor: pointer;
+        font: inherit;
+        font-weight: 700;
+        transition: transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+      }
+
+      .nav-button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 14px rgba(115, 65, 40, 0.18);
+      }
+
+      .nav-button.active {
+        border-color: var(--primary);
+        color: #fff;
+        background: var(--primary);
+      }
+
+      .nav-button:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+      }
+
+      .panel-stack {
         display: grid;
-        grid-template-columns: 1.2fr 1fr;
         gap: var(--space-5);
+      }
+
+      .panel {
+        display: none;
+      }
+
+      .panel.open {
+        display: block;
       }
 
       .card {
@@ -192,31 +236,6 @@ export function renderHtml(projectName: string): string {
         display: none;
         max-width: 560px;
         margin: var(--space-8) auto 0;
-      }
-
-      .public-hint {
-        display: none;
-        max-width: 760px;
-        margin: var(--space-8) auto 0;
-        text-align: center;
-        gap: var(--space-4);
-      }
-
-      .public-hint-visual {
-        width: min(100%, 360px);
-        margin: var(--space-1) auto 0;
-        display: block;
-      }
-
-      .public-hint-title {
-        margin: var(--space-2) 0 0;
-        font-size: clamp(1.2rem, 1.6vw + 0.8rem, 1.8rem);
-      }
-
-      .public-hint-desc {
-        margin: var(--space-1) auto 0;
-        max-width: 44ch;
-        color: var(--muted);
       }
 
       .form {
@@ -309,44 +328,6 @@ export function renderHtml(projectName: string): string {
         margin-top: var(--space-4);
       }
 
-      .manager {
-        position: fixed;
-        top: 0;
-        right: 0;
-        width: min(520px, 100%);
-        height: 100dvh;
-        background: #fffefc;
-        border-left: 1px solid var(--border);
-        box-shadow: -14px 0 30px rgba(71, 38, 17, 0.12);
-        padding:
-          calc(var(--space-6) + env(safe-area-inset-top))
-          calc(var(--space-6) + env(safe-area-inset-right))
-          calc(var(--space-6) + env(safe-area-inset-bottom))
-          calc(var(--space-6) + env(safe-area-inset-left));
-        transform: translateX(100%);
-        transition: transform 180ms ease;
-        z-index: 30;
-        overflow-y: auto;
-      }
-
-      .manager.open {
-        transform: translateX(0);
-      }
-
-      .manager-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-      }
-
-      .section-gap-sm {
-        margin-top: var(--space-3);
-      }
-
-      .section-gap-md {
-        margin-top: var(--space-4);
-      }
-
       .wish-actions {
         display: flex;
         flex-wrap: wrap;
@@ -416,13 +397,13 @@ export function renderHtml(projectName: string): string {
       }
 
       @media (max-width: 860px) {
-        .layout {
-          grid-template-columns: 1fr;
-        }
-
         .topbar {
           flex-direction: column;
           align-items: flex-start;
+        }
+
+        .feature-nav {
+          gap: var(--space-2);
         }
 
         .search-form {
@@ -438,8 +419,16 @@ export function renderHtml(projectName: string): string {
           <h1 class="brand">${projectName}</h1>
           <p class="owner" id="ownerName">加载中...</p>
         </div>
-        <button class="button" id="openManager">管理愿望</button>
       </header>
+
+      <nav class="feature-nav" id="featureNav" style="display:none;">
+        <button class="nav-button active" type="button" data-panel-nav="random">随机愿望</button>
+        <button class="nav-button" type="button" data-panel-nav="completed">已实现清单</button>
+        <button class="nav-button" type="button" data-panel-nav="login">登录验证</button>
+        <button class="nav-button" type="button" data-panel-nav="create" data-private="true">新增愿望</button>
+        <button class="nav-button" type="button" data-panel-nav="backup" data-private="true">备份恢复</button>
+        <button class="nav-button" type="button" data-panel-nav="list" data-private="true">全部愿望</button>
+      </nav>
 
       <section class="setup card" id="setupCard">
         <h2>初始化愿望清单</h2>
@@ -458,32 +447,88 @@ export function renderHtml(projectName: string): string {
         </form>
       </section>
 
-      <section class="public-hint card" id="publicHint">
-        <img
-          class="public-hint-visual"
-          src="https://raw.githubusercontent.com/balazser/undraw-svg-collection/main/svgs/authentication.svg"
-          alt="卡通风格登录验证插画"
-          loading="lazy"
-        />
-        <h2 class="public-hint-title">这是私密愿望清单</h2>
-        <p class="public-hint-desc" id="publicHintDesc">
-          出于隐私保护，未登录状态下仅展示提示信息。请进入管理台并验证密码后查看完整内容。
-        </p>
-        <div>
-          <button class="button" type="button" id="goLogin">进入管理台登录</button>
-        </div>
-      </section>
-
-      <main class="layout" id="mainLayout" style="display:none;">
-        <section class="card">
+      <main class="panel-stack" id="mainLayout" style="display:none;">
+        <section class="card panel open" id="panelRandom" data-panel="random">
           <h2>今日随机种草</h2>
           <p class="summary" id="randomSummary">正在抽取未实现愿望...</p>
           <button class="button secondary" id="showRandom">再抽一个</button>
         </section>
 
-        <section class="card">
+        <section class="card panel" id="panelCompleted" data-panel="completed">
           <h2>已实现愿望清单</h2>
           <div id="completedList" class="completed-list"></div>
+        </section>
+
+        <section class="card panel" id="panelLogin" data-panel="login">
+          <h2>输入验证密码</h2>
+          <p class="summary">验证成功后即可使用新增、备份和完整管理功能。</p>
+          <form class="form" id="loginForm">
+            <input id="loginPassword" type="password" placeholder="请输入密码" required />
+            <button class="button" type="submit">验证并进入</button>
+            <p class="status" id="loginStatus"></p>
+          </form>
+        </section>
+
+        <section class="card panel" id="panelCreate" data-panel="create">
+          <h2>新增愿望</h2>
+          <form class="form" id="createForm">
+            <div class="field">
+              <label for="wishTitle">项目名称</label>
+              <input id="wishTitle" maxlength="80" required placeholder="例如：入手降噪耳机" />
+            </div>
+            <div class="field">
+              <label for="wishDesc">描述</label>
+              <textarea id="wishDesc" maxlength="300" placeholder="写下你想实现它的理由"></textarea>
+            </div>
+            <label class="inline">
+              <input id="wishDone" type="checkbox" />
+              已实现
+            </label>
+            <button class="button" type="submit">创建愿望</button>
+            <p class="status" id="createStatus"></p>
+          </form>
+        </section>
+
+        <section class="card panel" id="panelBackup" data-panel="backup">
+          <h2>备份与恢复</h2>
+          <p class="summary">导出和导入都需要先登录。导入支持覆盖和合并模式。</p>
+          <div class="backup-row">
+            <button type="button" class="button secondary" id="exportData">导出 JSON 备份</button>
+          </div>
+          <div class="backup-row">
+            <input id="importFile" type="file" accept=".json,application/json" />
+            <span class="manage-meta" id="importFileName">未选择文件</span>
+          </div>
+          <div class="backup-row backup-modes">
+            <label class="inline">
+              <input type="radio" name="importMode" value="replace" checked />
+              覆盖现有数据
+            </label>
+            <label class="inline">
+              <input type="radio" name="importMode" value="merge" />
+              合并到现有数据
+            </label>
+          </div>
+          <button type="button" class="button" id="importData">开始导入</button>
+          <p class="status" id="backupStatus"></p>
+        </section>
+
+        <section class="card panel" id="panelList" data-panel="list">
+          <h2>全部愿望</h2>
+          <div class="manage-toolbar">
+            <form id="searchForm" class="search-form">
+              <input id="searchInput" class="search-input" placeholder="搜索项目名称或描述" />
+              <button type="submit" class="button secondary">搜索</button>
+              <button type="button" class="button ghost" id="clearSearch">清空</button>
+            </form>
+            <div class="manage-meta" id="manageMeta">共 0 条</div>
+          </div>
+          <div class="manage-list" id="manageList"></div>
+          <div class="pager">
+            <button type="button" class="button secondary" id="prevPage">上一页</button>
+            <span class="pager-info" id="pagerInfo">第 1 / 1 页</span>
+            <button type="button" class="button secondary" id="nextPage">下一页</button>
+          </div>
         </section>
       </main>
     </div>
@@ -510,87 +555,6 @@ export function renderHtml(projectName: string): string {
       </div>
     </div>
 
-    <div class="overlay" id="managerMask"></div>
-    <aside class="manager" id="manager">
-      <div class="manager-head">
-        <h2>愿望管理台</h2>
-        <button class="button ghost" id="closeManager">关闭</button>
-      </div>
-
-      <div id="loginBox" class="card section-gap-sm">
-        <h3>输入验证密码</h3>
-        <form class="form" id="loginForm">
-          <input id="loginPassword" type="password" placeholder="请输入密码" required />
-          <button class="button" type="submit">验证并进入</button>
-          <p class="status" id="loginStatus"></p>
-        </form>
-      </div>
-
-      <div id="managerBody" class="section-gap-sm" style="display:none;">
-        <section class="card">
-          <h3>新增愿望</h3>
-          <form class="form" id="createForm">
-            <div class="field">
-              <label for="wishTitle">项目名称</label>
-              <input id="wishTitle" maxlength="80" required placeholder="例如：入手降噪耳机" />
-            </div>
-            <div class="field">
-              <label for="wishDesc">描述</label>
-              <textarea id="wishDesc" maxlength="300" placeholder="写下你想实现它的理由"></textarea>
-            </div>
-            <label class="inline">
-              <input id="wishDone" type="checkbox" />
-              已实现
-            </label>
-            <button class="button" type="submit">创建愿望</button>
-            <p class="status" id="createStatus"></p>
-          </form>
-        </section>
-
-        <section class="card section-gap-md">
-          <h3>备份与恢复</h3>
-          <p class="summary">导出和导入都需要先登录管理台。导入支持覆盖和合并模式。</p>
-          <div class="backup-row">
-            <button type="button" class="button secondary" id="exportData">导出 JSON 备份</button>
-          </div>
-          <div class="backup-row">
-            <input id="importFile" type="file" accept=".json,application/json" />
-            <span class="manage-meta" id="importFileName">未选择文件</span>
-          </div>
-          <div class="backup-row backup-modes">
-            <label class="inline">
-              <input type="radio" name="importMode" value="replace" checked />
-              覆盖现有数据
-            </label>
-            <label class="inline">
-              <input type="radio" name="importMode" value="merge" />
-              合并到现有数据
-            </label>
-          </div>
-          <button type="button" class="button" id="importData">开始导入</button>
-          <p class="status" id="backupStatus"></p>
-        </section>
-
-        <section class="card section-gap-md">
-          <h3>全部愿望</h3>
-          <div class="manage-toolbar">
-            <form id="searchForm" class="search-form">
-              <input id="searchInput" class="search-input" placeholder="搜索项目名称或描述" />
-              <button type="submit" class="button secondary">搜索</button>
-              <button type="button" class="button ghost" id="clearSearch">清空</button>
-            </form>
-            <div class="manage-meta" id="manageMeta">共 0 条</div>
-          </div>
-          <div class="manage-list" id="manageList"></div>
-          <div class="pager">
-            <button type="button" class="button secondary" id="prevPage">上一页</button>
-            <span class="pager-info" id="pagerInfo">第 1 / 1 页</span>
-            <button type="button" class="button secondary" id="nextPage">下一页</button>
-          </div>
-        </section>
-      </div>
-    </aside>
-
     <script>
       const state = {
         hasConfig: false,
@@ -598,12 +562,14 @@ export function renderHtml(projectName: string): string {
         ownerName: '',
         password: '',
         authed: false,
+        activePanel: 'random',
         wishes: [],
         manageQuery: '',
         managePage: 1,
         managePageSize: 8,
         manageTotal: 0,
         manageTotalPages: 0,
+        unfinishedCount: 0,
         randomWish: null,
         completedWishes: [],
         pendingBackup: null
@@ -611,9 +577,9 @@ export function renderHtml(projectName: string): string {
 
       const ownerNameEl = document.getElementById('ownerName');
       const setupCard = document.getElementById('setupCard');
-      const publicHint = document.getElementById('publicHint');
-      const publicHintDesc = document.getElementById('publicHintDesc');
-      const goLogin = document.getElementById('goLogin');
+      const featureNav = document.getElementById('featureNav');
+      const navButtons = Array.from(document.querySelectorAll('[data-panel-nav]'));
+      const panels = Array.from(document.querySelectorAll('[data-panel]'));
       const setupForm = document.getElementById('setupForm');
       const setupStatus = document.getElementById('setupStatus');
       const mainLayout = document.getElementById('mainLayout');
@@ -628,13 +594,6 @@ export function renderHtml(projectName: string): string {
       const confirmMessage = document.getElementById('confirmMessage');
       const confirmCancel = document.getElementById('confirmCancel');
       const confirmOk = document.getElementById('confirmOk');
-
-      const openManager = document.getElementById('openManager');
-      const closeManager = document.getElementById('closeManager');
-      const manager = document.getElementById('manager');
-      const managerMask = document.getElementById('managerMask');
-      const loginBox = document.getElementById('loginBox');
-      const managerBody = document.getElementById('managerBody');
       const loginForm = document.getElementById('loginForm');
       const loginPassword = document.getElementById('loginPassword');
       const loginStatus = document.getElementById('loginStatus');
@@ -679,14 +638,60 @@ export function renderHtml(projectName: string): string {
         return { 'x-wishlist-password': state.password };
       }
 
-      function syncManagerAuthPanels() {
+      function isPanelAllowed(panelName) {
+        if (!state.hasConfig) {
+          return false;
+        }
         if (state.hasPrivateData) {
-          loginBox.style.display = 'none';
-          managerBody.style.display = 'block';
+          return true;
+        }
+        return panelName === 'random' || panelName === 'completed' || panelName === 'login';
+      }
+
+      function setActivePanel(panelName) {
+        if (!isPanelAllowed(panelName)) {
+          state.activePanel = 'login';
+        } else {
+          state.activePanel = panelName;
+        }
+
+        panels.forEach(function(panel) {
+          const isOpen = panel.dataset.panel === state.activePanel;
+          panel.classList.toggle('open', isOpen);
+        });
+
+        navButtons.forEach(function(button) {
+          button.classList.toggle('active', button.dataset.panelNav === state.activePanel);
+        });
+      }
+
+      function syncFeatureNav() {
+        if (!featureNav) {
           return;
         }
-        loginBox.style.display = 'block';
-        managerBody.style.display = 'none';
+
+        if (!state.hasConfig) {
+          featureNav.style.display = 'none';
+          return;
+        }
+
+        featureNav.style.display = 'flex';
+        navButtons.forEach(function(button) {
+          const needsAuth = button.dataset.private === 'true';
+          button.disabled = needsAuth && !state.hasPrivateData;
+        });
+
+        if (!isPanelAllowed(state.activePanel)) {
+          setActivePanel('login');
+          return;
+        }
+
+        if (state.hasPrivateData && state.activePanel === 'login') {
+          setActivePanel('random');
+          return;
+        }
+
+        setActivePanel(state.activePanel);
       }
 
       async function fetchJson(url, options) {
@@ -717,7 +722,7 @@ export function renderHtml(projectName: string): string {
         if (!state.completedWishes.length) {
           const p = document.createElement('p');
           p.className = 'empty';
-          p.textContent = '还没有实现的项目，去管理台把愿望标记为已实现。';
+          p.textContent = '还没有实现的项目，可在“全部愿望”里把愿望标记为已实现。';
           completedList.appendChild(p);
           return;
         }
@@ -815,30 +820,29 @@ export function renderHtml(projectName: string): string {
         state.authed = state.hasPrivateData;
 
         renderOwner();
-        syncManagerAuthPanels();
+        syncFeatureNav();
 
         if (!state.hasConfig) {
           setupCard.style.display = 'block';
-          publicHint.style.display = 'none';
           mainLayout.style.display = 'none';
           return;
         }
 
         setupCard.style.display = 'none';
+        mainLayout.style.display = 'grid';
+        renderCompleted();
+
         if (!state.hasPrivateData) {
-          publicHint.style.display = 'grid';
-          if (publicHintDesc) {
-            publicHintDesc.textContent =
-              state.ownerName + ' 的愿望清单已开启隐私模式，登录后可查看和管理内容。';
+          if (!isPanelAllowed(state.activePanel)) {
+            setActivePanel('login');
           }
-          mainLayout.style.display = 'none';
           setText(randomSummary, '登录后可查看未实现愿望。');
           return;
         }
 
-        publicHint.style.display = 'none';
-        mainLayout.style.display = 'grid';
-        renderCompleted();
+        if (state.activePanel === 'login') {
+          setActivePanel('random');
+        }
 
         if (showPopup && state.randomWish) {
           setTimeout(showRandomWish, 280);
@@ -1095,7 +1099,7 @@ export function renderHtml(projectName: string): string {
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ name: name, password: password })
           });
-          setText(setupStatus, '配置已保存。你可以进入管理台添加愿望。');
+          setText(setupStatus, '配置已保存。你可以通过导航栏进入登录和管理功能。');
           await loadPublicState(true);
         } catch (err) {
           setText(setupStatus, err.message);
@@ -1134,31 +1138,24 @@ export function renderHtml(projectName: string): string {
         }
       });
 
-      function openManagerPanel() {
-        manager.classList.add('open');
-        managerMask.classList.add('open');
-        if (state.hasPrivateData) {
-          loadManageWishes().catch(function(err) {
-            setText(loginStatus, err.message);
-          });
-        }
-      }
+      navButtons.forEach(function(button) {
+        button.addEventListener('click', async function() {
+          const panelName = button.dataset.panelNav || 'random';
+          if (!isPanelAllowed(panelName)) {
+            setActivePanel('login');
+            return;
+          }
+          setActivePanel(panelName);
 
-      function closeManagerPanel() {
-        manager.classList.remove('open');
-        managerMask.classList.remove('open');
-      }
-
-      openManager.addEventListener('click', function() {
-        openManagerPanel();
+          if (panelName === 'list' && state.hasPrivateData) {
+            try {
+              await loadManageWishes();
+            } catch (err) {
+              window.alert(err.message);
+            }
+          }
+        });
       });
-
-      goLogin.addEventListener('click', function() {
-        openManagerPanel();
-      });
-
-      closeManager.addEventListener('click', closeManagerPanel);
-      managerMask.addEventListener('click', closeManagerPanel);
 
       loginForm.addEventListener('submit', async function(event) {
         event.preventDefault();
@@ -1168,14 +1165,13 @@ export function renderHtml(projectName: string): string {
           state.password = password;
           state.authed = true;
           state.hasPrivateData = true;
-          loginBox.style.display = 'none';
-          managerBody.style.display = 'block';
           setText(loginStatus, '');
           setText(backupStatus, '');
           await Promise.all([
             loadManageWishes(),
             loadPublicState(false)
           ]);
+          setActivePanel('create');
         } catch (err) {
           setText(loginStatus, err.message);
         }
