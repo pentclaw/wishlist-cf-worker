@@ -17,6 +17,14 @@ export function renderHtml(projectName: string): string {
         --border: #f1d8c8;
         --danger: #b23a48;
         --shadow: 0 16px 40px rgba(73, 34, 12, 0.12);
+        --space-1: 6px;
+        --space-2: 8px;
+        --space-3: 10px;
+        --space-4: 12px;
+        --space-5: 16px;
+        --space-6: 18px;
+        --space-7: 24px;
+        --space-8: 28px;
       }
 
       * {
@@ -27,35 +35,41 @@ export function renderHtml(projectName: string): string {
         margin: 0;
         font-family: "Noto Serif SC", "Songti SC", "STKaiti", "Baskerville", serif;
         color: var(--text);
-        background:
-          radial-gradient(circle at 10% 10%, #ffe6cf 0%, transparent 38%),
-          radial-gradient(circle at 90% 5%, #d7f7ef 0%, transparent 30%),
-          linear-gradient(160deg, #fffaf0 0%, #fff1e4 42%, #fffaf5 100%);
-        min-height: 100vh;
+        background: var(--bg);
+        min-height: 100dvh;
       }
 
       .wrap {
         max-width: 1080px;
         margin: 0 auto;
-        padding: 24px 16px 48px;
+        padding: var(--space-7) var(--space-5) calc(var(--space-7) * 2);
       }
 
       .topbar {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 12px;
-        margin-bottom: 16px;
+        gap: var(--space-4);
+        margin-bottom: var(--space-5);
       }
 
       .brand {
         margin: 0;
-        letter-spacing: 0.03em;
         font-size: clamp(1.6rem, 2vw + 1rem, 2.4rem);
       }
 
+      h1,
+      h2,
+      h3 {
+        text-wrap: balance;
+      }
+
+      p {
+        text-wrap: pretty;
+      }
+
       .owner {
-        margin: 6px 0 0;
+        margin: var(--space-1) 0 0;
         color: var(--muted);
       }
 
@@ -66,13 +80,26 @@ export function renderHtml(projectName: string): string {
         border-radius: 999px;
         font-weight: 700;
         cursor: pointer;
-        padding: 10px 16px;
+        padding: var(--space-3) var(--space-5);
+        line-height: 1.2;
         transition: transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+      }
+
+      .button:focus-visible {
+        outline: 3px solid color-mix(in srgb, var(--primary) 45%, #fff);
+        outline-offset: 2px;
       }
 
       .button:hover {
         transform: translateY(-1px);
         box-shadow: 0 8px 16px rgba(218, 105, 49, 0.22);
+      }
+
+      .button:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
       }
 
       .button.secondary {
@@ -94,7 +121,7 @@ export function renderHtml(projectName: string): string {
       .layout {
         display: grid;
         grid-template-columns: 1.2fr 1fr;
-        gap: 16px;
+        gap: var(--space-5);
       }
 
       .card {
@@ -102,13 +129,17 @@ export function renderHtml(projectName: string): string {
         border: 1px solid var(--border);
         background: rgba(255, 255, 255, 0.88);
         box-shadow: var(--shadow);
-        padding: 18px;
-        backdrop-filter: blur(2px);
+        padding: var(--space-6);
       }
 
-      .card h2 {
-        margin: 0 0 10px;
+      .card h2,
+      .card h3 {
+        margin: 0 0 var(--space-4);
         font-size: 1.15rem;
+      }
+
+      .card h3 {
+        font-size: 1.05rem;
       }
 
       .summary {
@@ -119,14 +150,14 @@ export function renderHtml(projectName: string): string {
       .completed-list,
       .manage-list {
         display: grid;
-        gap: 10px;
+        gap: var(--space-3);
       }
 
       .wish-item {
         border: 1px solid var(--border);
         border-radius: 14px;
         background: #fff;
-        padding: 12px;
+        padding: var(--space-4);
       }
 
       .wish-item.done {
@@ -136,7 +167,7 @@ export function renderHtml(projectName: string): string {
 
       .wish-title {
         font-weight: 700;
-        margin-bottom: 6px;
+        margin-bottom: var(--space-1);
       }
 
       .wish-desc {
@@ -146,9 +177,10 @@ export function renderHtml(projectName: string): string {
       }
 
       .wish-meta {
-        margin-top: 8px;
+        margin-top: var(--space-2);
         font-size: 0.82rem;
         color: #9e8372;
+        font-variant-numeric: tabular-nums;
       }
 
       .empty {
@@ -159,42 +191,42 @@ export function renderHtml(projectName: string): string {
       .setup {
         display: none;
         max-width: 560px;
-        margin: 28px auto 0;
+        margin: var(--space-8) auto 0;
       }
 
       .public-hint {
         display: none;
         max-width: 760px;
-        margin: 28px auto 0;
+        margin: var(--space-8) auto 0;
         text-align: center;
-        gap: 12px;
+        gap: var(--space-4);
       }
 
       .public-hint-visual {
         width: min(100%, 360px);
-        margin: 6px auto 0;
+        margin: var(--space-1) auto 0;
         display: block;
       }
 
       .public-hint-title {
-        margin: 8px 0 0;
+        margin: var(--space-2) 0 0;
         font-size: clamp(1.2rem, 1.6vw + 0.8rem, 1.8rem);
       }
 
       .public-hint-desc {
-        margin: 6px auto 0;
+        margin: var(--space-1) auto 0;
         max-width: 44ch;
         color: var(--muted);
       }
 
       .form {
         display: grid;
-        gap: 12px;
+        gap: var(--space-4);
       }
 
       .field {
         display: grid;
-        gap: 6px;
+        gap: var(--space-2);
       }
 
       label {
@@ -205,7 +237,7 @@ export function renderHtml(projectName: string): string {
       textarea {
         border: 1px solid var(--border);
         border-radius: 12px;
-        padding: 10px 12px;
+        padding: var(--space-3) var(--space-4);
         font: inherit;
         background: #fff;
       }
@@ -218,7 +250,7 @@ export function renderHtml(projectName: string): string {
       .inline {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: var(--space-2);
       }
 
       .status {
@@ -234,7 +266,11 @@ export function renderHtml(projectName: string): string {
         display: none;
         align-items: center;
         justify-content: center;
-        padding: 16px;
+        padding:
+          max(var(--space-5), env(safe-area-inset-top))
+          max(var(--space-5), env(safe-area-inset-right))
+          max(var(--space-5), env(safe-area-inset-bottom))
+          max(var(--space-5), env(safe-area-inset-left));
         z-index: 20;
       }
 
@@ -248,19 +284,29 @@ export function renderHtml(projectName: string): string {
         background: #fff;
         border: 1px solid var(--border);
         border-radius: 16px;
-        padding: 18px;
-        animation: pop-in 220ms ease;
+        padding: var(--space-6);
       }
 
-      @keyframes pop-in {
-        from {
-          transform: scale(0.95) translateY(8px);
-          opacity: 0;
-        }
-        to {
-          transform: scale(1) translateY(0);
-          opacity: 1;
-        }
+      .dialog {
+        max-width: 420px;
+        width: 100%;
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: var(--space-6);
+      }
+
+      .dialog-message {
+        margin: 0;
+        color: var(--text);
+      }
+
+      .dialog-actions {
+        display: flex;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+        gap: var(--space-3);
+        margin-top: var(--space-4);
       }
 
       .manager {
@@ -268,11 +314,15 @@ export function renderHtml(projectName: string): string {
         top: 0;
         right: 0;
         width: min(520px, 100%);
-        height: 100vh;
+        height: 100dvh;
         background: #fffefc;
         border-left: 1px solid var(--border);
         box-shadow: -14px 0 30px rgba(71, 38, 17, 0.12);
-        padding: 18px;
+        padding:
+          calc(var(--space-6) + env(safe-area-inset-top))
+          calc(var(--space-6) + env(safe-area-inset-right))
+          calc(var(--space-6) + env(safe-area-inset-bottom))
+          calc(var(--space-6) + env(safe-area-inset-left));
         transform: translateX(100%);
         transition: transform 180ms ease;
         z-index: 30;
@@ -289,30 +339,38 @@ export function renderHtml(projectName: string): string {
         justify-content: space-between;
       }
 
+      .section-gap-sm {
+        margin-top: var(--space-3);
+      }
+
+      .section-gap-md {
+        margin-top: var(--space-4);
+      }
+
       .wish-actions {
         display: flex;
         flex-wrap: wrap;
-        gap: 8px;
-        margin-top: 10px;
+        gap: var(--space-3);
+        margin-top: var(--space-3);
       }
 
       .wish-actions .button {
-        padding: 6px 10px;
+        padding: var(--space-1) var(--space-3);
         font-size: 0.86rem;
       }
 
       .manage-toolbar {
         display: grid;
-        gap: 10px;
-        margin-bottom: 12px;
+        gap: var(--space-4);
+        margin-bottom: var(--space-4);
       }
 
       .backup-row {
         display: flex;
         flex-wrap: wrap;
         align-items: center;
-        gap: 8px;
-        margin-top: 10px;
+        gap: var(--space-3);
+        margin-top: var(--space-3);
       }
 
       .backup-modes {
@@ -322,7 +380,7 @@ export function renderHtml(projectName: string): string {
 
       .search-form {
         display: flex;
-        gap: 8px;
+        gap: var(--space-3);
       }
 
       .search-input {
@@ -332,19 +390,29 @@ export function renderHtml(projectName: string): string {
       .manage-meta {
         color: var(--muted);
         font-size: 0.9rem;
+        font-variant-numeric: tabular-nums;
       }
 
       .pager {
-        margin-top: 12px;
+        margin-top: var(--space-4);
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 8px;
+        gap: var(--space-3);
       }
 
       .pager-info {
         color: var(--muted);
         font-size: 0.9rem;
+        font-variant-numeric: tabular-nums;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          animation: none !important;
+          transition: none !important;
+          scroll-behavior: auto !important;
+        }
       }
 
       @media (max-width: 860px) {
@@ -431,6 +499,17 @@ export function renderHtml(projectName: string): string {
       </div>
     </div>
 
+    <div class="overlay" id="confirmOverlay">
+      <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMessage">
+        <h2 id="confirmTitle">请确认操作</h2>
+        <p class="dialog-message" id="confirmMessage"></p>
+        <div class="dialog-actions">
+          <button class="button ghost" id="confirmCancel">取消</button>
+          <button class="button danger" id="confirmOk">确认</button>
+        </div>
+      </div>
+    </div>
+
     <div class="overlay" id="managerMask"></div>
     <aside class="manager" id="manager">
       <div class="manager-head">
@@ -438,7 +517,7 @@ export function renderHtml(projectName: string): string {
         <button class="button ghost" id="closeManager">关闭</button>
       </div>
 
-      <div id="loginBox" class="card" style="margin-top:10px;">
+      <div id="loginBox" class="card section-gap-sm">
         <h3>输入验证密码</h3>
         <form class="form" id="loginForm">
           <input id="loginPassword" type="password" placeholder="请输入密码" required />
@@ -447,7 +526,7 @@ export function renderHtml(projectName: string): string {
         </form>
       </div>
 
-      <div id="managerBody" style="display:none; margin-top:10px;">
+      <div id="managerBody" class="section-gap-sm" style="display:none;">
         <section class="card">
           <h3>新增愿望</h3>
           <form class="form" id="createForm">
@@ -468,7 +547,7 @@ export function renderHtml(projectName: string): string {
           </form>
         </section>
 
-        <section class="card" style="margin-top:12px;">
+        <section class="card section-gap-md">
           <h3>备份与恢复</h3>
           <p class="summary">导出和导入都需要先登录管理台。导入支持覆盖和合并模式。</p>
           <div class="backup-row">
@@ -492,7 +571,7 @@ export function renderHtml(projectName: string): string {
           <p class="status" id="backupStatus"></p>
         </section>
 
-        <section class="card" style="margin-top:12px;">
+        <section class="card section-gap-md">
           <h3>全部愿望</h3>
           <div class="manage-toolbar">
             <form id="searchForm" class="search-form">
@@ -545,6 +624,10 @@ export function renderHtml(projectName: string): string {
       const popupTitle = document.getElementById('popupTitle');
       const popupDesc = document.getElementById('popupDesc');
       const closeRandom = document.getElementById('closeRandom');
+      const confirmOverlay = document.getElementById('confirmOverlay');
+      const confirmMessage = document.getElementById('confirmMessage');
+      const confirmCancel = document.getElementById('confirmCancel');
+      const confirmOk = document.getElementById('confirmOk');
 
       const openManager = document.getElementById('openManager');
       const closeManager = document.getElementById('closeManager');
@@ -570,6 +653,7 @@ export function renderHtml(projectName: string): string {
       const importFileName = document.getElementById('importFileName');
       const importData = document.getElementById('importData');
       const backupStatus = document.getElementById('backupStatus');
+      let confirmResolve = null;
 
       function setText(el, value) {
         if (el) {
@@ -620,7 +704,7 @@ export function renderHtml(projectName: string): string {
         if (!state.completedWishes.length) {
           const p = document.createElement('p');
           p.className = 'empty';
-          p.textContent = '还没有实现的项目，继续努力。';
+          p.textContent = '还没有实现的项目，去管理台把愿望标记为已实现。';
           completedList.appendChild(p);
           return;
         }
@@ -666,6 +750,35 @@ export function renderHtml(projectName: string): string {
 
       function closeRandomWish() {
         randomOverlay.classList.remove('open');
+      }
+
+      function closeConfirmDialog(confirmed) {
+        if (confirmOverlay) {
+          confirmOverlay.classList.remove('open');
+        }
+        if (confirmResolve) {
+          const done = confirmResolve;
+          confirmResolve = null;
+          done(confirmed);
+        }
+      }
+
+      function openConfirmDialog(message, okText) {
+        return new Promise(function(resolve) {
+          confirmResolve = resolve;
+          if (confirmMessage) {
+            confirmMessage.textContent = message;
+          }
+          if (confirmOk && okText) {
+            confirmOk.textContent = okText;
+          }
+          if (confirmOverlay) {
+            confirmOverlay.classList.add('open');
+          }
+          if (confirmCancel) {
+            confirmCancel.focus();
+          }
+        });
       }
 
       function renderOwner() {
@@ -792,7 +905,7 @@ export function renderHtml(projectName: string): string {
 
         const mode = getImportMode();
         if (mode === 'replace') {
-          const confirmed = window.confirm('覆盖导入会替换当前全部愿望，确定继续吗？');
+          const confirmed = await openConfirmDialog('覆盖导入会替换当前全部愿望，确定继续吗？', '确认覆盖');
           if (!confirmed) {
             return null;
           }
@@ -880,10 +993,12 @@ export function renderHtml(projectName: string): string {
           const deleteBtn = document.createElement('button');
           deleteBtn.className = 'button danger';
           deleteBtn.textContent = '删除';
-          deleteBtn.addEventListener('click', function() {
-            if (window.confirm('确定删除这个愿望吗？')) {
-              deleteWish(wish.id);
+          deleteBtn.addEventListener('click', async function() {
+            const confirmed = await openConfirmDialog('确定删除这个愿望吗？该操作不可恢复。', '确认删除');
+            if (!confirmed) {
+              return;
             }
+            deleteWish(wish.id);
           });
 
           actions.appendChild(toggleBtn);
@@ -985,6 +1100,22 @@ export function renderHtml(projectName: string): string {
       randomOverlay.addEventListener('click', function(event) {
         if (event.target === randomOverlay) {
           closeRandomWish();
+        }
+      });
+      confirmCancel.addEventListener('click', function() {
+        closeConfirmDialog(false);
+      });
+      confirmOk.addEventListener('click', function() {
+        closeConfirmDialog(true);
+      });
+      confirmOverlay.addEventListener('click', function(event) {
+        if (event.target === confirmOverlay) {
+          closeConfirmDialog(false);
+        }
+      });
+      document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape' && confirmOverlay.classList.contains('open')) {
+          closeConfirmDialog(false);
         }
       });
 
