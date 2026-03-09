@@ -37,4 +37,5 @@ test('renderHtml should include dialog confirmation for risky actions', () => {
 test('renderHtml should include Pico.css baseline stylesheet', () => {
   const html = renderHtml('测试项目');
   assert.match(html, /@picocss\/pico@2\/css\/pico\.min\.css/);
+  assert.doesNotMatch(html, /<style>/);
 });

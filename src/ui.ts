@@ -6,558 +6,156 @@ export function renderHtml(projectName: string): string {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>${projectName}</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
-    <style>
-      :root {
-        --pico-font-family: "Noto Serif SC", "Songti SC", "STKaiti", "Baskerville", serif;
-        --pico-primary: #da6931;
-        --pico-primary-hover: #c75c29;
-        --pico-primary-focus: rgba(218, 105, 49, 0.26);
-        --pico-primary-inverse: #ffffff;
-        --pico-border-radius: 12px;
-        --pico-form-element-spacing-vertical: 0.7rem;
-        --pico-form-element-spacing-horizontal: 0.9rem;
-        --bg: #fffaf0;
-        --surface: #ffffff;
-        --text: #2f1d0f;
-        --muted: #7e6656;
-        --primary: #da6931;
-        --primary-soft: #ffe2d0;
-        --accent: #2a9d8f;
-        --border: #f1d8c8;
-        --danger: #b23a48;
-        --shadow: 0 16px 40px rgba(73, 34, 12, 0.12);
-        --space-1: 6px;
-        --space-2: 8px;
-        --space-3: 10px;
-        --space-4: 12px;
-        --space-5: 16px;
-        --space-6: 18px;
-        --space-7: 24px;
-        --space-8: 28px;
-      }
-
-      * {
-        box-sizing: border-box;
-      }
-
-      body {
-        margin: 0;
-        color: var(--text);
-        background: var(--bg);
-        min-height: 100dvh;
-      }
-
-      .wrap {
-        padding-top: var(--space-7);
-        padding-bottom: calc(var(--space-7) * 2);
-      }
-
-      .topbar {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: var(--space-4);
-        margin-bottom: var(--space-5);
-      }
-
-      .brand {
-        margin: 0;
-        font-size: clamp(1.6rem, 2vw + 1rem, 2.4rem);
-      }
-
-      h1,
-      h2,
-      h3 {
-        text-wrap: balance;
-      }
-
-      p {
-        text-wrap: pretty;
-      }
-
-      .owner {
-        margin: var(--space-1) 0 0;
-        color: var(--muted);
-      }
-
-      .button {
-        --pico-background-color: var(--primary);
-        --pico-border-color: var(--primary);
-        --pico-color: #fff;
-        border: 1px solid var(--primary);
-        border-radius: 999px;
-        font-weight: 700;
-        cursor: pointer;
-        padding: var(--space-3) var(--space-5);
-        line-height: 1.35;
-        margin: 0;
-      }
-
-      .button:focus-visible {
-        outline: 3px solid color-mix(in srgb, var(--primary) 45%, #fff);
-        outline-offset: 2px;
-      }
-
-      .button:disabled {
-        opacity: 0.55;
-        cursor: not-allowed;
-      }
-
-      .button.secondary {
-        --pico-background-color: var(--surface);
-        --pico-border-color: var(--border);
-        --pico-color: var(--text);
-        background: var(--surface);
-        color: var(--text);
-        border-color: var(--border);
-      }
-
-      .button.ghost {
-        --pico-background-color: var(--surface);
-        --pico-border-color: var(--border);
-        --pico-color: var(--text);
-        background: var(--surface);
-        color: var(--text);
-        border-color: var(--border);
-      }
-
-      .button.danger {
-        --pico-background-color: var(--danger);
-        --pico-border-color: var(--danger);
-        --pico-color: #fff;
-        background: var(--danger);
-      }
-
-      .feature-nav {
-        display: flex;
-        flex-wrap: wrap;
-        gap: var(--space-3);
-        margin-bottom: var(--space-5);
-      }
-
-      .nav-button {
-        border: 1px solid var(--border);
-        background: var(--surface);
-        color: var(--text);
-        border-radius: 999px;
-        padding: var(--space-2) var(--space-4);
-        cursor: pointer;
-        font: inherit;
-        font-weight: 700;
-      }
-
-      .nav-button.active {
-        border-color: var(--primary);
-        color: #fff;
-        background: var(--primary);
-      }
-
-      .nav-button:disabled {
-        opacity: 0.55;
-        cursor: not-allowed;
-      }
-
-      .panel-stack {
-        display: grid;
-        gap: var(--space-5);
-      }
-
-      .panel {
-        display: none;
-      }
-
-      .panel.open {
-        display: block;
-      }
-
-      .card {
-        border-radius: 18px;
-        border: 1px solid var(--border);
-        background: rgba(255, 255, 255, 0.88);
-        box-shadow: var(--shadow);
-        padding: var(--space-7);
-      }
-
-      .card h2,
-      .card h3 {
-        margin: 0 0 var(--space-5);
-        font-size: 1.15rem;
-      }
-
-      .card h3 {
-        font-size: 1.05rem;
-      }
-
-      .summary {
-        color: var(--muted);
-        margin: 0 0 var(--space-5);
-        line-height: 1.6;
-      }
-
-      .completed-list,
-      .manage-list {
-        display: grid;
-        gap: var(--space-3);
-      }
-
-      .wish-item {
-        border: 1px solid var(--border);
-        border-radius: 14px;
-        background: #fff;
-        padding: var(--space-4);
-      }
-
-      .wish-item.done {
-        border-color: #bfe5dc;
-        background: #f3fffb;
-      }
-
-      .wish-title {
-        font-weight: 700;
-        margin-bottom: var(--space-1);
-      }
-
-      .wish-desc {
-        margin: 0;
-        color: var(--muted);
-        white-space: pre-wrap;
-      }
-
-      .wish-meta {
-        margin-top: var(--space-2);
-        font-size: 0.82rem;
-        color: #9e8372;
-        font-variant-numeric: tabular-nums;
-      }
-
-      .empty {
-        color: #9e8372;
-        margin: 0;
-      }
-
-      .setup {
-        display: none;
-        max-width: 560px;
-        margin: var(--space-8) auto 0;
-      }
-
-      .form {
-        display: grid;
-        gap: var(--space-5);
-      }
-
-      .field {
-        display: grid;
-        gap: var(--space-3);
-      }
-
-      label {
-        font-weight: 700;
-      }
-
-      input:not([type='checkbox']):not([type='radio']),
-      textarea {
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        padding: var(--space-3) var(--space-5);
-        font: inherit;
-        background: #fff;
-        line-height: 1.5;
-      }
-
-      .form > .button {
-        justify-self: flex-start;
-      }
-
-      textarea {
-        min-height: 92px;
-        resize: vertical;
-      }
-
-      .inline {
-        display: flex;
-        align-items: center;
-        gap: var(--space-2);
-      }
-
-      .status {
-        margin: var(--space-1) 0 0;
-        color: var(--muted);
-        min-height: 1.4em;
-      }
-
-      .overlay {
-        position: fixed;
-        inset: 0;
-        background: rgba(52, 32, 18, 0.48);
-        display: none;
-        align-items: center;
-        justify-content: center;
-        padding:
-          max(var(--space-5), env(safe-area-inset-top))
-          max(var(--space-5), env(safe-area-inset-right))
-          max(var(--space-5), env(safe-area-inset-bottom))
-          max(var(--space-5), env(safe-area-inset-left));
-        z-index: 20;
-      }
-
-      .overlay.open {
-        display: flex;
-      }
-
-      .dialog {
-        max-width: 420px;
-        width: 100%;
-        background: #fff;
-        border: 1px solid var(--border);
-        border-radius: 16px;
-        padding: var(--space-7);
-      }
-
-      .dialog-message {
-        margin: 0;
-        color: var(--text);
-        line-height: 1.6;
-      }
-
-      .dialog-actions {
-        display: flex;
-        justify-content: flex-end;
-        flex-wrap: wrap;
-        gap: var(--space-4);
-        margin-top: var(--space-5);
-      }
-
-      .wish-actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: var(--space-4);
-        margin-top: var(--space-4);
-      }
-
-      .wish-actions .button {
-        padding: var(--space-1) var(--space-3);
-        font-size: 0.86rem;
-      }
-
-      .wish-editor {
-        margin-top: var(--space-4);
-        border-top: 1px dashed var(--border);
-        padding-top: var(--space-4);
-      }
-
-      .manage-toolbar {
-        display: grid;
-        gap: var(--space-5);
-        margin-bottom: var(--space-5);
-      }
-
-      .backup-row {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: var(--space-4);
-        margin-top: var(--space-4);
-      }
-
-      .backup-modes {
-        flex-direction: column;
-        align-items: flex-start;
-      }
-
-      .search-form {
-        display: flex;
-        gap: var(--space-4);
-      }
-
-      .search-input {
-        flex: 1;
-      }
-
-      .manage-meta {
-        color: var(--muted);
-        font-size: 0.9rem;
-        font-variant-numeric: tabular-nums;
-      }
-
-      .pager {
-        margin-top: var(--space-5);
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: var(--space-4);
-      }
-
-      .pager-info {
-        color: var(--muted);
-        font-size: 0.9rem;
-        font-variant-numeric: tabular-nums;
-      }
-
-      @media (prefers-reduced-motion: reduce) {
-        * {
-          animation: none !important;
-          transition: none !important;
-          scroll-behavior: auto !important;
-        }
-      }
-
-      @media (max-width: 860px) {
-        .topbar {
-          flex-direction: column;
-          align-items: flex-start;
-        }
-
-        .feature-nav {
-          gap: var(--space-2);
-        }
-
-        .search-form {
-          flex-wrap: wrap;
-        }
-      }
-    </style>
   </head>
   <body>
-    <div class="container wrap">
-      <header class="topbar">
-        <div>
-          <h1 class="brand">${projectName}</h1>
-          <p class="owner" id="ownerName">加载中...</p>
-        </div>
+    <main class="container">
+      <header>
+        <hgroup>
+          <h1>${projectName}</h1>
+          <p id="ownerName">加载中...</p>
+        </hgroup>
       </header>
 
-      <nav class="feature-nav" id="featureNav" style="display:none;">
-        <button class="nav-button active" type="button" data-panel-nav="random">随机愿望</button>
-        <button class="nav-button" type="button" data-panel-nav="completed">已实现清单</button>
-        <button class="nav-button" type="button" data-panel-nav="login">登录验证</button>
-        <button class="nav-button" type="button" data-panel-nav="create" data-private="true">新增愿望</button>
-        <button class="nav-button" type="button" data-panel-nav="backup" data-private="true">备份恢复</button>
-        <button class="nav-button" type="button" data-panel-nav="list" data-private="true">全部愿望</button>
+      <nav id="featureNav" hidden>
+        <ul>
+          <li><button type="button" data-panel-nav="random">随机愿望</button></li>
+          <li><button class="secondary" type="button" data-panel-nav="completed">已实现清单</button></li>
+          <li><button class="secondary" type="button" data-panel-nav="login">登录验证</button></li>
+          <li><button class="secondary" type="button" data-panel-nav="create" data-private="true">新增愿望</button></li>
+          <li><button class="secondary" type="button" data-panel-nav="backup" data-private="true">备份恢复</button></li>
+          <li><button class="secondary" type="button" data-panel-nav="list" data-private="true">全部愿望</button></li>
+        </ul>
       </nav>
 
-      <section class="setup card" id="setupCard">
-        <h2>初始化愿望清单</h2>
-        <p class="summary">首次使用时请先配置许愿人姓名和验证密码。</p>
-        <form class="form" id="setupForm">
-          <div class="field">
+      <section id="setupCard" hidden>
+        <article>
+          <h2>初始化愿望清单</h2>
+          <p>首次使用时请先配置许愿人姓名和验证密码。</p>
+          <form id="setupForm">
             <label for="setupName">许愿人姓名</label>
             <input id="setupName" maxlength="40" required placeholder="例如：小林" />
-          </div>
-          <div class="field">
             <label for="setupPassword">验证密码（至少 4 位）</label>
             <input id="setupPassword" type="password" minlength="4" required />
-          </div>
-          <button class="button" type="submit">保存配置</button>
-          <p class="status" id="setupStatus"></p>
-        </form>
+            <button type="submit">保存配置</button>
+            <p id="setupStatus"></p>
+          </form>
+        </article>
       </section>
 
-      <main class="panel-stack" id="mainLayout" style="display:none;">
-        <section class="card panel open" id="panelRandom" data-panel="random">
-          <h2>今日随机种草</h2>
-          <p class="summary" id="randomSummary">正在抽取未实现愿望...</p>
-          <button class="button secondary" id="showRandom">再抽一个</button>
-          <article class="wish-item" id="randomCard" style="display:none; margin-top: var(--space-4);">
-            <div class="wish-title" id="randomTitle"></div>
-            <p class="wish-desc" id="randomDesc"></p>
-            <div class="wish-meta" id="randomMeta"></div>
+      <div id="mainLayout" hidden>
+        <section id="panelRandom" data-panel="random">
+          <article>
+            <h2>今日随机种草</h2>
+            <p id="randomSummary">正在抽取未实现愿望...</p>
+            <button class="secondary" id="showRandom" type="button">再抽一个</button>
+            <article id="randomCard" hidden>
+              <h3 id="randomTitle"></h3>
+              <p id="randomDesc"></p>
+              <small id="randomMeta"></small>
+            </article>
           </article>
         </section>
 
-        <section class="card panel" id="panelCompleted" data-panel="completed">
-          <h2>已实现愿望清单</h2>
-          <div id="completedList" class="completed-list"></div>
+        <section id="panelCompleted" data-panel="completed" hidden>
+          <article>
+            <h2>已实现愿望清单</h2>
+            <div id="completedList"></div>
+          </article>
         </section>
 
-        <section class="card panel" id="panelLogin" data-panel="login">
-          <h2>输入验证密码</h2>
-          <p class="summary">验证成功后即可使用新增、备份和完整管理功能。</p>
-          <form class="form" id="loginForm">
-            <input id="loginPassword" type="password" placeholder="请输入密码" required />
-            <button class="button" type="submit">验证并进入</button>
-            <p class="status" id="loginStatus"></p>
-          </form>
+        <section id="panelLogin" data-panel="login" hidden>
+          <article>
+            <h2>输入验证密码</h2>
+            <p>验证成功后即可使用新增、备份和完整管理功能。</p>
+            <form id="loginForm">
+              <input id="loginPassword" type="password" placeholder="请输入密码" required />
+              <button type="submit">验证并进入</button>
+              <p id="loginStatus"></p>
+            </form>
+          </article>
         </section>
 
-        <section class="card panel" id="panelCreate" data-panel="create">
-          <h2>新增愿望</h2>
-          <form class="form" id="createForm">
-            <div class="field">
+        <section id="panelCreate" data-panel="create" hidden>
+          <article>
+            <h2>新增愿望</h2>
+            <form id="createForm">
               <label for="wishTitle">项目名称</label>
               <input id="wishTitle" maxlength="80" required placeholder="例如：入手降噪耳机" />
-            </div>
-            <div class="field">
               <label for="wishDesc">描述</label>
               <textarea id="wishDesc" maxlength="300" placeholder="写下你想实现它的理由"></textarea>
-            </div>
-            <label class="inline">
-              <input id="wishDone" type="checkbox" />
-              已实现
-            </label>
-            <button class="button" type="submit">创建愿望</button>
-            <p class="status" id="createStatus"></p>
-          </form>
-        </section>
-
-        <section class="card panel" id="panelBackup" data-panel="backup">
-          <h2>备份与恢复</h2>
-          <p class="summary">导出和导入都需要先登录。导入支持覆盖和合并模式。</p>
-          <div class="backup-row">
-            <button type="button" class="button secondary" id="exportData">导出 JSON 备份</button>
-          </div>
-          <div class="backup-row">
-            <input id="importFile" type="file" accept=".json,application/json" />
-            <span class="manage-meta" id="importFileName">未选择文件</span>
-          </div>
-          <div class="backup-row backup-modes">
-            <label class="inline">
-              <input type="radio" name="importMode" value="replace" checked />
-              覆盖现有数据
-            </label>
-            <label class="inline">
-              <input type="radio" name="importMode" value="merge" />
-              合并到现有数据
-            </label>
-          </div>
-          <button type="button" class="button" id="importData">开始导入</button>
-          <p class="status" id="backupStatus"></p>
-        </section>
-
-        <section class="card panel" id="panelList" data-panel="list">
-          <h2>全部愿望</h2>
-          <div class="manage-toolbar">
-            <form id="searchForm" class="search-form">
-              <input id="searchInput" class="search-input" placeholder="搜索项目名称或描述" />
-              <button type="submit" class="button secondary">搜索</button>
-              <button type="button" class="button ghost" id="clearSearch">清空</button>
+              <label>
+                <input id="wishDone" type="checkbox" />
+                已实现
+              </label>
+              <button type="submit">创建愿望</button>
+              <p id="createStatus"></p>
             </form>
-            <div class="manage-meta" id="manageMeta">共 0 条</div>
-          </div>
-          <p class="status" id="manageStatus"></p>
-          <div class="backup-row" id="manageStatusActions" style="display:none;">
-            <button type="button" class="button ghost" id="undoDelete">撤销删除</button>
-          </div>
-          <div class="manage-list" id="manageList"></div>
-          <div class="pager">
-            <button type="button" class="button secondary" id="prevPage">上一页</button>
-            <span class="pager-info" id="pagerInfo">第 1 / 1 页</span>
-            <button type="button" class="button secondary" id="nextPage">下一页</button>
-          </div>
+          </article>
         </section>
-      </main>
-    </div>
 
-    <div class="overlay" id="confirmOverlay">
-      <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMessage">
-        <h2 id="confirmTitle">请确认操作</h2>
-        <p class="dialog-message" id="confirmMessage"></p>
-        <div class="dialog-actions">
-          <button class="button ghost" id="confirmCancel">取消</button>
-          <button class="button danger" id="confirmOk">确认</button>
-        </div>
+        <section id="panelBackup" data-panel="backup" hidden>
+          <article>
+            <h2>备份与恢复</h2>
+            <p>导出和导入都需要先登录。导入支持覆盖和合并模式。</p>
+            <p><button class="secondary" type="button" id="exportData">导出 JSON 备份</button></p>
+            <input id="importFile" type="file" accept=".json,application/json" />
+            <small id="importFileName">未选择文件</small>
+            <fieldset>
+              <legend>导入模式</legend>
+              <label>
+                <input type="radio" name="importMode" value="replace" checked />
+                覆盖现有数据
+              </label>
+              <label>
+                <input type="radio" name="importMode" value="merge" />
+                合并到现有数据
+              </label>
+            </fieldset>
+            <button type="button" id="importData">开始导入</button>
+            <p id="backupStatus"></p>
+          </article>
+        </section>
+
+        <section id="panelList" data-panel="list" hidden>
+          <article>
+            <h2>全部愿望</h2>
+            <form id="searchForm">
+              <input id="searchInput" placeholder="搜索项目名称或描述" />
+              <button class="secondary" type="submit">搜索</button>
+              <button class="outline" type="button" id="clearSearch">清空</button>
+            </form>
+            <small id="manageMeta">共 0 条</small>
+            <p id="manageStatus"></p>
+            <p id="manageStatusActions" hidden>
+              <button class="outline" type="button" id="undoDelete">撤销删除</button>
+            </p>
+            <div id="manageList"></div>
+            <nav>
+              <ul>
+                <li><button class="secondary" type="button" id="prevPage">上一页</button></li>
+              </ul>
+              <ul>
+                <li><small id="pagerInfo">第 1 / 1 页</small></li>
+              </ul>
+              <ul>
+                <li><button class="secondary" type="button" id="nextPage">下一页</button></li>
+              </ul>
+            </nav>
+          </article>
+        </section>
       </div>
-    </div>
+    </main>
+
+    <dialog id="confirmOverlay">
+      <article>
+        <h2 id="confirmTitle">请确认操作</h2>
+        <p id="confirmMessage"></p>
+        <footer>
+          <button class="secondary" id="confirmCancel" type="button">取消</button>
+          <button class="contrast" id="confirmOk" type="button">确认</button>
+        </footer>
+      </article>
+    </dialog>
 
     <script>
       const state = {
@@ -666,12 +264,13 @@ export function renderHtml(projectName: string): string {
         }
 
         panels.forEach(function(panel) {
-          const isOpen = panel.dataset.panel === state.activePanel;
-          panel.classList.toggle('open', isOpen);
+          panel.hidden = panel.dataset.panel !== state.activePanel;
         });
 
         navButtons.forEach(function(button) {
-          button.classList.toggle('active', button.dataset.panelNav === state.activePanel);
+          const isActive = button.dataset.panelNav === state.activePanel;
+          button.classList.toggle('secondary', !isActive);
+          button.setAttribute('aria-current', isActive ? 'page' : 'false');
         });
       }
 
@@ -681,11 +280,11 @@ export function renderHtml(projectName: string): string {
         }
 
         if (!state.hasConfig) {
-          featureNav.style.display = 'none';
+          featureNav.hidden = true;
           return;
         }
 
-        featureNav.style.display = 'flex';
+        featureNav.hidden = false;
         navButtons.forEach(function(button) {
           const needsAuth = button.dataset.private === 'true';
           button.disabled = needsAuth && !state.hasPrivateData;
@@ -723,7 +322,6 @@ export function renderHtml(projectName: string): string {
         completedList.innerHTML = '';
         if (!state.hasPrivateData) {
           const p = document.createElement('p');
-          p.className = 'empty';
           p.textContent = '登录后可查看已实现愿望。';
           completedList.appendChild(p);
           return;
@@ -731,7 +329,6 @@ export function renderHtml(projectName: string): string {
 
         if (!state.completedWishes.length) {
           const p = document.createElement('p');
-          p.className = 'empty';
           p.textContent = '还没有实现的项目，可在“全部愿望”里把愿望标记为已实现。';
           completedList.appendChild(p);
           return;
@@ -739,18 +336,14 @@ export function renderHtml(projectName: string): string {
 
         state.completedWishes.forEach(function(wish) {
           const node = document.createElement('article');
-          node.className = 'wish-item done';
 
-          const title = document.createElement('div');
-          title.className = 'wish-title';
+          const title = document.createElement('h3');
           title.textContent = wish.title;
 
           const desc = document.createElement('p');
-          desc.className = 'wish-desc';
           desc.textContent = wish.description || '已实现，暂无补充描述。';
 
-          const meta = document.createElement('div');
-          meta.className = 'wish-meta';
+          const meta = document.createElement('small');
           meta.textContent = '完成于 ' + new Date(wish.completedAt || wish.updatedAt).toLocaleString();
 
           node.appendChild(title);
@@ -766,18 +359,18 @@ export function renderHtml(projectName: string): string {
         }
 
         if (!state.hasPrivateData) {
-          randomCard.style.display = 'none';
+          randomCard.hidden = true;
           setText(randomSummary, '登录后可查看未实现愿望。');
           return;
         }
 
         if (!state.randomWish) {
-          randomCard.style.display = 'none';
+          randomCard.hidden = true;
           setText(randomSummary, '目前没有未实现愿望。');
           return;
         }
 
-        randomCard.style.display = 'block';
+        randomCard.hidden = false;
         setText(randomTitle, state.randomWish.title);
         setText(randomDesc, state.randomWish.description || '这个愿望还没有补充说明。');
         setText(randomMeta, '更新于 ' + new Date(state.randomWish.updatedAt).toLocaleString());
@@ -807,13 +400,13 @@ export function renderHtml(projectName: string): string {
         syncFeatureNav();
 
         if (!state.hasConfig) {
-          setupCard.style.display = 'block';
-          mainLayout.style.display = 'none';
+          setupCard.hidden = false;
+          mainLayout.hidden = true;
           return;
         }
 
-        setupCard.style.display = 'none';
-        mainLayout.style.display = 'grid';
+        setupCard.hidden = true;
+        mainLayout.hidden = false;
         renderCompleted();
         renderRandomWish();
 
@@ -927,8 +520,8 @@ export function renderHtml(projectName: string): string {
       }
 
       function closeConfirmDialog(confirmed) {
-        if (confirmOverlay) {
-          confirmOverlay.classList.remove('open');
+        if (confirmOverlay && typeof confirmOverlay.close === 'function' && confirmOverlay.open) {
+          confirmOverlay.close();
         }
         if (confirmResolve) {
           const done = confirmResolve;
@@ -946,8 +539,8 @@ export function renderHtml(projectName: string): string {
           if (confirmOk && okText) {
             confirmOk.textContent = okText;
           }
-          if (confirmOverlay) {
-            confirmOverlay.classList.add('open');
+          if (confirmOverlay && typeof confirmOverlay.showModal === 'function' && !confirmOverlay.open) {
+            confirmOverlay.showModal();
           }
           if (confirmCancel) {
             confirmCancel.focus();
@@ -963,7 +556,7 @@ export function renderHtml(projectName: string): string {
         if (!manageStatusActions) {
           return;
         }
-        manageStatusActions.style.display = show ? 'flex' : 'none';
+        manageStatusActions.hidden = !show;
       }
 
       function clearScheduledDelete(shouldRender) {
@@ -1081,7 +674,6 @@ export function renderHtml(projectName: string): string {
         manageList.innerHTML = '';
         if (!state.wishes.length) {
           const p = document.createElement('p');
-          p.className = 'empty';
           p.textContent = state.manageQuery ? '没有匹配的愿望。' : '还没有愿望，先创建一个吧。';
           manageList.appendChild(p);
           return;
@@ -1089,32 +681,27 @@ export function renderHtml(projectName: string): string {
 
         state.wishes.forEach(function(wish) {
           const node = document.createElement('article');
-          node.className = 'wish-item' + (wish.done ? ' done' : '');
 
-          const title = document.createElement('div');
-          title.className = 'wish-title';
+          const title = document.createElement('h3');
           title.textContent = wish.title;
 
           const desc = document.createElement('p');
-          desc.className = 'wish-desc';
           desc.textContent = wish.description || '暂无描述';
 
-          const meta = document.createElement('div');
-          meta.className = 'wish-meta';
+          const meta = document.createElement('small');
           meta.textContent = (wish.done ? '已实现' : '未实现') + ' · 更新于 ' + new Date(wish.updatedAt).toLocaleString();
 
-          const actions = document.createElement('div');
-          actions.className = 'wish-actions';
+          const actions = document.createElement('p');
 
           const toggleBtn = document.createElement('button');
-          toggleBtn.className = 'button secondary';
+          toggleBtn.className = 'secondary';
           toggleBtn.textContent = wish.done ? '标记未实现' : '标记已实现';
           toggleBtn.addEventListener('click', function() {
             toggleWishDone(wish);
           });
 
           const editBtn = document.createElement('button');
-          editBtn.className = 'button ghost';
+          editBtn.className = 'outline';
           editBtn.textContent = state.editingWishId === wish.id ? '收起编辑' : '编辑';
           editBtn.addEventListener('click', function() {
             if (state.editingWishId === wish.id) {
@@ -1127,7 +714,7 @@ export function renderHtml(projectName: string): string {
           const deleteBtn = document.createElement('button');
           const pendingDelete = state.pendingDeleteWishId === wish.id;
           const scheduledDelete = state.scheduledDeleteWishId === wish.id;
-          deleteBtn.className = pendingDelete || scheduledDelete ? 'button danger' : 'button ghost';
+          deleteBtn.className = pendingDelete || scheduledDelete ? 'contrast' : 'outline';
           deleteBtn.textContent = scheduledDelete ? '删除倒计时中...' : pendingDelete ? '确认删除' : '删除';
           deleteBtn.disabled = scheduledDelete;
           deleteBtn.addEventListener('click', function() {
@@ -1144,8 +731,9 @@ export function renderHtml(projectName: string): string {
           node.appendChild(actions);
 
           if (state.editingWishId === wish.id) {
-            const editor = document.createElement('div');
-            editor.className = 'form wish-editor';
+            const editor = document.createElement('fieldset');
+            const legend = document.createElement('legend');
+            legend.textContent = '编辑愿望';
 
             const titleField = document.createElement('input');
             titleField.value = wish.title;
@@ -1157,18 +745,17 @@ export function renderHtml(projectName: string): string {
             descField.maxLength = 300;
             descField.placeholder = '描述';
 
-            const editorActions = document.createElement('div');
-            editorActions.className = 'wish-actions';
+            const editorActions = document.createElement('p');
 
             const saveBtn = document.createElement('button');
-            saveBtn.className = 'button secondary';
+            saveBtn.className = 'secondary';
             saveBtn.textContent = '保存';
             saveBtn.addEventListener('click', function() {
               saveInlineEdit(wish.id, titleField.value, descField.value);
             });
 
             const cancelBtn = document.createElement('button');
-            cancelBtn.className = 'button ghost';
+            cancelBtn.className = 'outline';
             cancelBtn.textContent = '取消';
             cancelBtn.addEventListener('click', function() {
               cancelEditWish();
@@ -1176,6 +763,7 @@ export function renderHtml(projectName: string): string {
 
             editorActions.appendChild(saveBtn);
             editorActions.appendChild(cancelBtn);
+            editor.appendChild(legend);
             editor.appendChild(titleField);
             editor.appendChild(descField);
             editor.appendChild(editorActions);
@@ -1266,15 +854,9 @@ export function renderHtml(projectName: string): string {
       confirmOk.addEventListener('click', function() {
         closeConfirmDialog(true);
       });
-      confirmOverlay.addEventListener('click', function(event) {
-        if (event.target === confirmOverlay) {
-          closeConfirmDialog(false);
-        }
-      });
-      document.addEventListener('keydown', function(event) {
-        if (event.key === 'Escape' && confirmOverlay.classList.contains('open')) {
-          closeConfirmDialog(false);
-        }
+      confirmOverlay.addEventListener('cancel', function(event) {
+        event.preventDefault();
+        closeConfirmDialog(false);
       });
 
       navButtons.forEach(function(button) {
