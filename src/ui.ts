@@ -5,8 +5,17 @@ export function renderHtml(projectName: string): string {
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>${projectName}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
     <style>
       :root {
+        --pico-font-family: "Noto Serif SC", "Songti SC", "STKaiti", "Baskerville", serif;
+        --pico-primary: #da6931;
+        --pico-primary-hover: #c75c29;
+        --pico-primary-focus: rgba(218, 105, 49, 0.26);
+        --pico-primary-inverse: #ffffff;
+        --pico-border-radius: 12px;
+        --pico-form-element-spacing-vertical: 0.7rem;
+        --pico-form-element-spacing-horizontal: 0.9rem;
         --bg: #fffaf0;
         --surface: #ffffff;
         --text: #2f1d0f;
@@ -33,16 +42,14 @@ export function renderHtml(projectName: string): string {
 
       body {
         margin: 0;
-        font-family: "Noto Serif SC", "Songti SC", "STKaiti", "Baskerville", serif;
         color: var(--text);
         background: var(--bg);
         min-height: 100dvh;
       }
 
       .wrap {
-        max-width: 1080px;
-        margin: 0 auto;
-        padding: var(--space-7) var(--space-5) calc(var(--space-7) * 2);
+        padding-top: var(--space-7);
+        padding-bottom: calc(var(--space-7) * 2);
       }
 
       .topbar {
@@ -74,14 +81,16 @@ export function renderHtml(projectName: string): string {
       }
 
       .button {
-        border: 1px solid transparent;
-        background: var(--primary);
-        color: #fff;
+        --pico-background-color: var(--primary);
+        --pico-border-color: var(--primary);
+        --pico-color: #fff;
+        border: 1px solid var(--primary);
         border-radius: 999px;
         font-weight: 700;
         cursor: pointer;
         padding: var(--space-3) var(--space-5);
         line-height: 1.35;
+        margin: 0;
       }
 
       .button:focus-visible {
@@ -95,18 +104,27 @@ export function renderHtml(projectName: string): string {
       }
 
       .button.secondary {
+        --pico-background-color: var(--surface);
+        --pico-border-color: var(--border);
+        --pico-color: var(--text);
         background: var(--surface);
         color: var(--text);
         border-color: var(--border);
       }
 
       .button.ghost {
+        --pico-background-color: var(--surface);
+        --pico-border-color: var(--border);
+        --pico-color: var(--text);
         background: var(--surface);
         color: var(--text);
         border-color: var(--border);
       }
 
       .button.danger {
+        --pico-background-color: var(--danger);
+        --pico-border-color: var(--danger);
+        --pico-color: #fff;
         background: var(--danger);
       }
 
@@ -401,7 +419,7 @@ export function renderHtml(projectName: string): string {
     </style>
   </head>
   <body>
-    <div class="wrap">
+    <div class="container wrap">
       <header class="topbar">
         <div>
           <h1 class="brand">${projectName}</h1>
