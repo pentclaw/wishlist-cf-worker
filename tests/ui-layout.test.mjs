@@ -37,5 +37,49 @@ test('renderHtml should include dialog confirmation for risky actions', () => {
 test('renderHtml should include Pico.css baseline stylesheet', () => {
   const html = renderHtml('测试项目');
   assert.match(html, /@picocss\/pico@2\/css\/pico\.min\.css/);
-  assert.doesNotMatch(html, /<style>/);
+  assert.match(html, /<style>/);
+});
+
+test('renderHtml should expose accessible live status regions and labels', () => {
+  const html = renderHtml('测试项目');
+
+  assert.match(html, /<label for="loginPassword">验证密码<\/label>/);
+  assert.match(html, /id="setupStatus"[^>]*role="status"[^>]*aria-live="polite"/);
+  assert.match(html, /id="loginStatus"[^>]*role="status"[^>]*aria-live="polite"/);
+  assert.match(html, /id="createStatus"[^>]*role="status"[^>]*aria-live="polite"/);
+  assert.match(html, /id="manageStatus"[^>]*role="status"[^>]*aria-live="polite"/);
+  assert.match(html, /id="backupStatus"[^>]*role="status"[^>]*aria-live="polite"/);
+});
+
+test('renderHtml should keep client validation limits aligned with server', () => {
+  const html = renderHtml('测试项目');
+
+  assert.match(html, /id="setupName"[^>]*maxlength="40"/);
+  assert.match(html, /id="setupPassword"[^>]*minlength="8"[^>]*maxlength="128"/);
+  assert.match(html, /id="wishTitle"[^>]*maxlength="120"/);
+  assert.match(html, /id="wishDesc"[^>]*maxlength="2000"/);
+});
+
+test('renderHtml should keep login form compatible with legacy short passwords', () => {
+  const html = renderHtml('测试项目');
+
+  assert.match(html, /id="loginPassword"[^>]*minlength="4"/);
+  assert.doesNotMatch(html, /id="loginPassword"[^>]*minlength="8"/);
+});
+
+test('renderHtml should include responsive rules for mobile layout', () => {
+  const html = renderHtml('测试项目');
+
+  assert.match(html, /@media\s*\(max-width:\s*768px\)/);
+  assert.match(html, /#featureNav ul/);
+  assert.match(html, /#mainLayout nav ul/);
+});
+
+test('renderHtml should include manage list page cache helpers', () => {
+  const html = renderHtml('测试项目');
+
+  assert.match(html, /managePageCache:\s*new Map\(\)/);
+  assert.match(html, /function manageCacheKey\(/);
+  assert.match(html, /function invalidateManageCache\(/);
+  assert.match(html, /const cached = state\.managePageCache\.get\(cacheKey\)/);
 });

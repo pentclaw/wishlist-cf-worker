@@ -6,6 +6,54 @@ export function renderHtml(projectName: string): string {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>${projectName}</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
+    <style>
+      #featureNav ul {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+        align-items: stretch;
+      }
+
+      #featureNav li {
+        list-style: none;
+      }
+
+      #featureNav button {
+        margin: 0;
+      }
+
+      #manageList article {
+        overflow-wrap: anywhere;
+      }
+
+      #mainLayout nav ul {
+        margin-bottom: 0;
+      }
+
+      @media (max-width: 768px) {
+        #featureNav ul {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 0.5rem;
+        }
+
+        #featureNav button {
+          width: 100%;
+          font-size: 0.95rem;
+          padding-inline: 0.5rem;
+        }
+
+        #mainLayout nav {
+          display: block;
+        }
+
+        #mainLayout nav ul {
+          justify-content: center;
+          width: 100%;
+          margin: 0.3rem 0;
+        }
+      }
+    </style>
   </head>
   <body>
     <main class="container">
@@ -34,10 +82,10 @@ export function renderHtml(projectName: string): string {
           <form id="setupForm">
             <label for="setupName">许愿人姓名</label>
             <input id="setupName" maxlength="40" required placeholder="例如：小林" />
-            <label for="setupPassword">验证密码（至少 4 位）</label>
-            <input id="setupPassword" type="password" minlength="4" required />
+            <label for="setupPassword">验证密码（至少 8 位）</label>
+            <input id="setupPassword" type="password" minlength="8" maxlength="128" autocomplete="new-password" required />
             <button type="submit">保存配置</button>
-            <p id="setupStatus"></p>
+            <p id="setupStatus" role="status" aria-live="polite"></p>
           </form>
         </article>
       </section>
@@ -68,9 +116,10 @@ export function renderHtml(projectName: string): string {
             <h2>输入验证密码</h2>
             <p>验证成功后即可使用新增、备份和完整管理功能。</p>
             <form id="loginForm">
-              <input id="loginPassword" type="password" placeholder="请输入密码" required />
+              <label for="loginPassword">验证密码</label>
+              <input id="loginPassword" type="password" minlength="4" maxlength="128" autocomplete="current-password" placeholder="请输入密码" required />
               <button type="submit">验证并进入</button>
-              <p id="loginStatus"></p>
+              <p id="loginStatus" role="status" aria-live="polite"></p>
             </form>
           </article>
         </section>
@@ -80,15 +129,15 @@ export function renderHtml(projectName: string): string {
             <h2>新增愿望</h2>
             <form id="createForm">
               <label for="wishTitle">项目名称</label>
-              <input id="wishTitle" maxlength="80" required placeholder="例如：入手降噪耳机" />
+              <input id="wishTitle" maxlength="120" required placeholder="例如：入手降噪耳机" />
               <label for="wishDesc">描述</label>
-              <textarea id="wishDesc" maxlength="300" placeholder="写下你想实现它的理由"></textarea>
+              <textarea id="wishDesc" maxlength="2000" placeholder="写下你想实现它的理由"></textarea>
               <label>
                 <input id="wishDone" type="checkbox" />
                 已实现
               </label>
               <button type="submit">创建愿望</button>
-              <p id="createStatus"></p>
+              <p id="createStatus" role="status" aria-live="polite"></p>
             </form>
           </article>
         </section>
@@ -112,7 +161,7 @@ export function renderHtml(projectName: string): string {
               </label>
             </fieldset>
             <button type="button" id="importData">开始导入</button>
-            <p id="backupStatus"></p>
+            <p id="backupStatus" role="status" aria-live="polite"></p>
           </article>
         </section>
 
@@ -120,12 +169,13 @@ export function renderHtml(projectName: string): string {
           <article>
             <h2>全部愿望</h2>
             <form id="searchForm">
-              <input id="searchInput" placeholder="搜索项目名称或描述" />
+              <label for="searchInput">搜索愿望</label>
+              <input id="searchInput" maxlength="200" placeholder="搜索项目名称或描述" />
               <button class="secondary" type="submit">搜索</button>
               <button class="outline" type="button" id="clearSearch">清空</button>
             </form>
             <small id="manageMeta">共 0 条</small>
-            <p id="manageStatus"></p>
+            <p id="manageStatus" role="status" aria-live="polite"></p>
             <p id="manageStatusActions" hidden>
               <button class="outline" type="button" id="undoDelete">撤销删除</button>
             </p>
@@ -176,7 +226,8 @@ export function renderHtml(projectName: string): string {
         scheduledDeleteWishId: '',
         randomWish: null,
         completedWishes: [],
-        pendingBackup: null
+        pendingBackup: null,
+        managePageCache: new Map()
       };
 
       const ownerNameEl = document.getElementById('ownerName');
@@ -221,10 +272,98 @@ export function renderHtml(projectName: string): string {
       const undoDelete = document.getElementById('undoDelete');
       let scheduledDeleteTimer = null;
       let confirmResolve = null;
+      const MAX_MANAGE_CACHE_PAGES = 24;
 
       function setText(el, value) {
         if (el) {
           el.textContent = value;
+        }
+      }
+
+      function getErrorMessage(err) {
+        if (err instanceof Error && err.message) {
+          return err.message;
+        }
+        return '请求失败，请稍后重试。';
+      }
+
+      async function runWithButtonBusy(button, loadingText, action) {
+        if (!button) {
+          return action();
+        }
+        const originalText = button.textContent;
+        button.disabled = true;
+        if (loadingText) {
+          button.textContent = loadingText;
+        }
+        try {
+          return await action();
+        } finally {
+          button.disabled = false;
+          if (originalText !== null) {
+            button.textContent = originalText;
+          }
+        }
+      }
+
+      function manageCacheKey(query, page, pageSize) {
+        return [query || '', page || 1, pageSize || 8].join('|');
+      }
+
+      function invalidateManageCache() {
+        state.managePageCache.clear();
+      }
+
+      function rememberManageCache(cacheKey, payload) {
+        if (state.managePageCache.has(cacheKey)) {
+          state.managePageCache.delete(cacheKey);
+        }
+        state.managePageCache.set(cacheKey, payload);
+        while (state.managePageCache.size > MAX_MANAGE_CACHE_PAGES) {
+          const firstKey = state.managePageCache.keys().next().value;
+          if (typeof firstKey !== 'string') {
+            break;
+          }
+          state.managePageCache.delete(firstKey);
+        }
+      }
+
+      function applyManagePayload(payload) {
+        state.wishes = payload.wishes;
+        state.manageTotal = payload.total;
+        state.managePage = payload.page;
+        state.managePageSize = payload.pageSize;
+        state.manageTotalPages = payload.totalPages;
+        renderManageList();
+        renderPager();
+      }
+
+      function normalizeManagePayload(data) {
+        const pagination = data.pagination || {};
+        return {
+          wishes: Array.isArray(data.wishes) ? data.wishes : [],
+          total: Number(pagination.total) || 0,
+          page: Number(pagination.page) || 1,
+          pageSize: Number(pagination.pageSize) || state.managePageSize,
+          totalPages: Number(pagination.totalPages) || 0
+        };
+      }
+
+      function setManageLoading(loading) {
+        if (manageList) {
+          manageList.setAttribute('aria-busy', loading ? 'true' : 'false');
+        }
+        if (searchInput) {
+          searchInput.disabled = loading;
+        }
+        if (clearSearch) {
+          clearSearch.disabled = loading;
+        }
+        if (prevPage) {
+          prevPage.disabled = loading || state.managePage <= 1;
+        }
+        if (nextPage) {
+          nextPage.disabled = loading || state.manageTotalPages === 0 || state.managePage >= state.manageTotalPages;
         }
       }
 
@@ -304,7 +443,12 @@ export function renderHtml(projectName: string): string {
       }
 
       async function fetchJson(url, options) {
-        const resp = await fetch(url, options || {});
+        let resp;
+        try {
+          resp = await fetch(url, options || {});
+        } catch (err) {
+          throw new Error('网络异常，请稍后重试。');
+        }
         let data = {};
         try {
           data = await resp.json();
@@ -319,7 +463,8 @@ export function renderHtml(projectName: string): string {
       }
 
       function renderCompleted() {
-        completedList.innerHTML = '';
+        const fragment = document.createDocumentFragment();
+        completedList.replaceChildren();
         if (!state.hasPrivateData) {
           const p = document.createElement('p');
           p.textContent = '登录后可查看已实现愿望。';
@@ -349,8 +494,10 @@ export function renderHtml(projectName: string): string {
           node.appendChild(title);
           node.appendChild(desc);
           node.appendChild(meta);
-          completedList.appendChild(node);
+          fragment.appendChild(node);
         });
+
+        completedList.appendChild(fragment);
       }
 
       function renderRandomWish() {
@@ -395,6 +542,9 @@ export function renderHtml(projectName: string): string {
         state.completedWishes = data.completedWishes || [];
         state.unfinishedCount = data.unfinishedCount || 0;
         state.hasPrivateData = Boolean(data.authenticated);
+        if (!state.hasPrivateData) {
+          invalidateManageCache();
+        }
 
         renderOwner();
         syncFeatureNav();
@@ -431,6 +581,13 @@ export function renderHtml(projectName: string): string {
       }
 
       async function loadManageWishes() {
+        const cacheKey = manageCacheKey(state.manageQuery, state.managePage, state.managePageSize);
+        const cached = state.managePageCache.get(cacheKey);
+        if (cached) {
+          applyManagePayload(cached);
+          return;
+        }
+
         const params = new URLSearchParams();
         params.set('page', String(state.managePage));
         params.set('pageSize', String(state.managePageSize));
@@ -438,17 +595,23 @@ export function renderHtml(projectName: string): string {
           params.set('q', state.manageQuery);
         }
 
-        const data = await fetchJson('/api/wishes?' + params.toString(), {
-          headers: authHeaders(false)
-        });
-        state.wishes = data.wishes || [];
-        const pagination = data.pagination || {};
-        state.manageTotal = Number(pagination.total) || 0;
-        state.managePage = Number(pagination.page) || 1;
-        state.managePageSize = Number(pagination.pageSize) || state.managePageSize;
-        state.manageTotalPages = Number(pagination.totalPages) || 0;
-        renderManageList();
-        renderPager();
+        setManageLoading(true);
+        setManageMessage('正在加载愿望列表...');
+        try {
+          const data = await fetchJson('/api/wishes?' + params.toString(), {
+            headers: authHeaders(false)
+          });
+          const payload = normalizeManagePayload(data);
+          const resolvedCacheKey = manageCacheKey(state.manageQuery, payload.page, payload.pageSize);
+          rememberManageCache(resolvedCacheKey, payload);
+          if (resolvedCacheKey !== cacheKey) {
+            rememberManageCache(cacheKey, payload);
+          }
+          applyManagePayload(payload);
+          setManageMessage('');
+        } finally {
+          setManageLoading(false);
+        }
       }
 
       function makeBackupFilename() {
@@ -510,6 +673,7 @@ export function renderHtml(projectName: string): string {
           })
         });
 
+        invalidateManageCache();
         state.managePage = 1;
         await Promise.all([
           loadManageWishes(),
@@ -625,8 +789,17 @@ export function renderHtml(projectName: string): string {
 
       async function saveInlineEdit(wishId, title, description) {
         const nextTitle = title.trim();
+        const nextDescription = description.trim();
         if (!nextTitle) {
           setManageMessage('项目名称不能为空。');
+          return;
+        }
+        if (nextTitle.length > 120) {
+          setManageMessage('项目名称不能超过 120 个字符。');
+          return;
+        }
+        if (nextDescription.length > 2000) {
+          setManageMessage('描述不能超过 2000 个字符。');
           return;
         }
 
@@ -637,9 +810,10 @@ export function renderHtml(projectName: string): string {
             headers: authHeaders(true),
             body: JSON.stringify({
               title: nextTitle,
-              description: description.trim()
+              description: nextDescription
             })
           });
+          invalidateManageCache();
           state.editingWishId = '';
           setManageMessage('愿望已更新。');
           await Promise.all([
@@ -647,7 +821,7 @@ export function renderHtml(projectName: string): string {
             loadPublicState()
           ]);
         } catch (err) {
-          setManageMessage(err.message);
+          setManageMessage(getErrorMessage(err));
         }
       }
 
@@ -659,6 +833,7 @@ export function renderHtml(projectName: string): string {
             headers: authHeaders(true),
             body: JSON.stringify({ done: !wish.done })
           });
+          invalidateManageCache();
           clearPendingDelete();
           setManageMessage('');
           await Promise.all([
@@ -666,12 +841,13 @@ export function renderHtml(projectName: string): string {
             loadPublicState()
           ]);
         } catch (err) {
-          setManageMessage(err.message);
+          setManageMessage(getErrorMessage(err));
         }
       }
 
       function renderManageList() {
-        manageList.innerHTML = '';
+        const fragment = document.createDocumentFragment();
+        manageList.replaceChildren();
         if (!state.wishes.length) {
           const p = document.createElement('p');
           p.textContent = state.manageQuery ? '没有匹配的愿望。' : '还没有愿望，先创建一个吧。';
@@ -737,12 +913,12 @@ export function renderHtml(projectName: string): string {
 
             const titleField = document.createElement('input');
             titleField.value = wish.title;
-            titleField.maxLength = 80;
+            titleField.maxLength = 120;
             titleField.placeholder = '项目名称';
 
             const descField = document.createElement('textarea');
             descField.value = wish.description || '';
-            descField.maxLength = 300;
+            descField.maxLength = 2000;
             descField.placeholder = '描述';
 
             const editorActions = document.createElement('p');
@@ -769,8 +945,10 @@ export function renderHtml(projectName: string): string {
             editor.appendChild(editorActions);
             node.appendChild(editor);
           }
-          manageList.appendChild(node);
+          fragment.appendChild(node);
         });
+
+        manageList.appendChild(fragment);
       }
 
       function renderPager() {
@@ -806,13 +984,14 @@ export function renderHtml(projectName: string): string {
             method: 'DELETE',
             headers: authHeaders(false)
           });
+          invalidateManageCache();
           setManageMessage('愿望已删除。');
           await Promise.all([
             loadManageWishes(),
             loadPublicState()
           ]);
         } catch (err) {
-          setManageMessage(err.message);
+          setManageMessage(getErrorMessage(err));
         }
       }
 
@@ -820,17 +999,37 @@ export function renderHtml(projectName: string): string {
         event.preventDefault();
         const name = document.getElementById('setupName').value.trim();
         const password = document.getElementById('setupPassword').value;
+        const submitBtn = setupForm.querySelector('button[type="submit"]');
+
+        if (!name) {
+          setText(setupStatus, '许愿人姓名不能为空。');
+          return;
+        }
+        if (name.length > 40) {
+          setText(setupStatus, '许愿人姓名不能超过 40 个字符。');
+          return;
+        }
+        if (password.length < 8) {
+          setText(setupStatus, '密码长度至少为 8 位。');
+          return;
+        }
+        if (password.length > 128) {
+          setText(setupStatus, '密码长度不能超过 128 位。');
+          return;
+        }
 
         try {
-          await fetchJson('/api/setup', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ name: name, password: password })
+          await runWithButtonBusy(submitBtn, '保存中...', async function() {
+            await fetchJson('/api/setup', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ name: name, password: password })
+            });
           });
           setText(setupStatus, '配置已保存。你可以通过导航栏进入登录和管理功能。');
           await loadPublicState();
         } catch (err) {
-          setText(setupStatus, err.message);
+          setText(setupStatus, getErrorMessage(err));
         }
       });
 
@@ -838,7 +1037,7 @@ export function renderHtml(projectName: string): string {
         try {
           await loadPublicState();
         } catch (err) {
-          setText(randomSummary, err.message);
+          setText(randomSummary, getErrorMessage(err));
         }
       });
 
@@ -872,7 +1071,7 @@ export function renderHtml(projectName: string): string {
             try {
               await loadManageWishes();
             } catch (err) {
-              setManageMessage(err.message);
+              setManageMessage(getErrorMessage(err));
             }
           }
         });
@@ -881,10 +1080,14 @@ export function renderHtml(projectName: string): string {
       loginForm.addEventListener('submit', async function(event) {
         event.preventDefault();
         const password = loginPassword.value;
+        const submitBtn = loginForm.querySelector('button[type="submit"]');
         try {
-          await verifyPassword(password);
+          await runWithButtonBusy(submitBtn, '验证中...', async function() {
+            await verifyPassword(password);
+          });
           state.password = password;
           state.hasPrivateData = true;
+          invalidateManageCache();
           setText(loginStatus, '');
           setText(backupStatus, '');
           await Promise.all([
@@ -893,7 +1096,7 @@ export function renderHtml(projectName: string): string {
           ]);
           setActivePanel('create');
         } catch (err) {
-          setText(loginStatus, err.message);
+          setText(loginStatus, getErrorMessage(err));
         }
       });
 
@@ -902,22 +1105,34 @@ export function renderHtml(projectName: string): string {
         const title = document.getElementById('wishTitle').value.trim();
         const description = document.getElementById('wishDesc').value.trim();
         const done = document.getElementById('wishDone').checked;
+        const submitBtn = createForm.querySelector('button[type="submit"]');
 
         if (!title) {
           setText(createStatus, '项目名称不能为空');
           return;
         }
+        if (title.length > 120) {
+          setText(createStatus, '项目名称不能超过 120 个字符。');
+          return;
+        }
+        if (description.length > 2000) {
+          setText(createStatus, '描述不能超过 2000 个字符。');
+          return;
+        }
 
         try {
-          await fetchJson('/api/wishes', {
-            method: 'POST',
-            headers: authHeaders(true),
-            body: JSON.stringify({
-              title: title,
-              description: description,
-              done: done
-            })
+          await runWithButtonBusy(submitBtn, '创建中...', async function() {
+            await fetchJson('/api/wishes', {
+              method: 'POST',
+              headers: authHeaders(true),
+              body: JSON.stringify({
+                title: title,
+                description: description,
+                done: done
+              })
+            });
           });
+          invalidateManageCache();
           createForm.reset();
           setText(createStatus, '已创建愿望。');
           await Promise.all([
@@ -925,7 +1140,7 @@ export function renderHtml(projectName: string): string {
             loadPublicState()
           ]);
         } catch (err) {
-          setText(createStatus, err.message);
+          setText(createStatus, getErrorMessage(err));
         }
       });
 
@@ -937,7 +1152,7 @@ export function renderHtml(projectName: string): string {
           await loadManageWishes();
           setManageMessage('');
         } catch (err) {
-          setManageMessage(err.message);
+          setManageMessage(getErrorMessage(err));
         }
       });
 
@@ -949,7 +1164,7 @@ export function renderHtml(projectName: string): string {
           await loadManageWishes();
           setManageMessage('');
         } catch (err) {
-          setManageMessage(err.message);
+          setManageMessage(getErrorMessage(err));
         }
       });
 
@@ -962,7 +1177,7 @@ export function renderHtml(projectName: string): string {
           await loadManageWishes();
           setManageMessage('');
         } catch (err) {
-          setManageMessage(err.message);
+          setManageMessage(getErrorMessage(err));
         }
       });
 
@@ -975,17 +1190,19 @@ export function renderHtml(projectName: string): string {
           await loadManageWishes();
           setManageMessage('');
         } catch (err) {
-          setManageMessage(err.message);
+          setManageMessage(getErrorMessage(err));
         }
       });
 
       exportData.addEventListener('click', async function() {
         try {
           setText(backupStatus, '正在导出备份...');
-          await exportBackup();
+          await runWithButtonBusy(exportData, '导出中...', async function() {
+            await exportBackup();
+          });
           setText(backupStatus, '导出成功，请妥善保存备份文件。');
         } catch (err) {
-          setText(backupStatus, err.message);
+          setText(backupStatus, getErrorMessage(err));
         }
       });
 
@@ -1006,14 +1223,16 @@ export function renderHtml(projectName: string): string {
           state.pendingBackup = null;
           importFile.value = '';
           setText(importFileName, '未选择文件');
-          setText(backupStatus, err.message);
+          setText(backupStatus, getErrorMessage(err));
         }
       });
 
       importData.addEventListener('click', async function() {
         try {
           setText(backupStatus, '正在导入备份...');
-          const result = await importBackup();
+          const result = await runWithButtonBusy(importData, '导入中...', async function() {
+            return importBackup();
+          });
           if (!result) {
             setText(backupStatus, '已取消导入。');
             return;
@@ -1024,12 +1243,12 @@ export function renderHtml(projectName: string): string {
             '导入完成：接收 ' + result.acceptedCount + ' 条，当前共 ' + result.totalAfter + ' 条' + overwriteText + '。',
           );
         } catch (err) {
-          setText(backupStatus, err.message);
+          setText(backupStatus, getErrorMessage(err));
         }
       });
 
       loadPublicState().catch(function(err) {
-        setText(ownerNameEl, '加载失败：' + err.message);
+        setText(ownerNameEl, '加载失败：' + getErrorMessage(err));
       });
     </script>
   </body>

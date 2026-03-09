@@ -11,6 +11,9 @@
 - 登录后在主页面查看随机未实现愿望与已实现愿望清单（不使用随机弹窗）
 - 覆盖导入使用确认弹框，删除支持二次确认与可撤销倒计时
 - PC / 移动端响应式适配
+- 服务端统一输入校验（密码最少 8 位、标题/描述长度限制）
+- 内置安全响应头与 API `Cache-Control: no-store`
+- 管理列表分页结果前端缓存，降低重复翻页请求
 
 ## 一键部署（Deploy to Cloudflare）
 
@@ -83,6 +86,8 @@ npm run deploy
 
 - [src/index.ts](./src/index.ts): Hono Worker、KV 存储、鉴权与 CRUD API
 - [src/ui.ts](./src/ui.ts): 前端页面模板与交互逻辑（基于 Pico.css 语义化 UI）
+- [src/types.ts](./src/types.ts): 服务端共享类型定义
+- [src/validator.ts](./src/validator.ts): 输入与导入数据校验/归一化逻辑
 - [wrangler.toml](./wrangler.toml): Worker 配置与 KV 绑定
 
 ## API 速览
@@ -90,7 +95,7 @@ npm run deploy
 ### 公共接口
 
 - `GET /api/public`：获取公开页面基础数据（默认仅返回项目名/许愿人）；携带 `x-wishlist-password` 或已登录 Cookie（`wishlist_auth`）且验证通过后，返回随机未实现愿望、已实现列表等私有数据
-- `POST /api/setup`：首次初始化（name + password）
+- `POST /api/setup`：首次初始化（name + password，密码至少 8 位）
 - `POST /api/auth`：密码验证，成功后下发 `HttpOnly` 登录 Cookie（`wishlist_auth`）
 
 ### 管理接口（需请求头 `x-wishlist-password` 或已登录 Cookie）

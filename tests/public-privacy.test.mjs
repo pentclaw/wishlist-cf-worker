@@ -173,3 +173,172 @@ test('POST /api/auth should issue cookie that keeps session after refresh', asyn
   assert.equal(Array.isArray(wishesPayload.wishes), true);
   assert.equal(wishesPayload.wishes.length, 1);
 });
+
+test('GET / should include secure response headers', async () => {
+  const env = {
+    WISHLIST_KV: new MemoryKV(),
+  };
+
+  const resp = await app.request('/', undefined, env);
+  assert.equal(resp.status, 200);
+  assert.equal(resp.headers.get('x-content-type-options'), 'nosniff');
+  assert.equal(resp.headers.get('x-frame-options'), 'DENY');
+  assert.match(resp.headers.get('content-security-policy') ?? '', /default-src 'self'/);
+});
+
+test('POST /api/setup should validate input length boundaries', async () => {
+  const env = {
+    WISHLIST_KV: new MemoryKV(),
+  };
+
+  const tooLongNameResp = await app.request(
+    '/api/setup',
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: 'x'.repeat(41),
+        password: 'pass1234',
+      }),
+    },
+    env,
+  );
+  assert.equal(tooLongNameResp.status, 400);
+
+  const shortPasswordResp = await app.request(
+    '/api/setup',
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: 'owner',
+        password: '1234',
+      }),
+    },
+    env,
+  );
+  assert.equal(shortPasswordResp.status, 400);
+});
+
+test('POST /api/wishes should reject overlong fields', async () => {
+  const env = {
+    WISHLIST_KV: new MemoryKV(),
+  };
+  await setupAppState(env);
+
+  const resp = await app.request(
+    '/api/wishes',
+    {
+      method: 'POST',
+      headers: authHeaders('pass1234'),
+      body: JSON.stringify({
+        title: 'T'.repeat(121),
+        description: 'desc',
+      }),
+    },
+    env,
+  );
+  assert.equal(resp.status, 400);
+});
+
+test('PUT /api/wishes should validate id and field lengths', async () => {
+  const env = {
+    WISHLIST_KV: new MemoryKV(),
+  };
+  await setupAppState(env);
+
+  const listResp = await app.request('/api/wishes?page=1&pageSize=8', { headers: authHeaders('pass1234') }, env);
+  assert.equal(listResp.status, 200);
+  const listPayload = await listResp.json();
+  const wishId = listPayload.wishes[0].id;
+  assert.ok(wishId);
+
+  const tooLongDescResp = await app.request(
+    `/api/wishes/${encodeURIComponent(wishId)}`,
+    {
+      method: 'PUT',
+      headers: authHeaders('pass1234'),
+      body: JSON.stringify({
+        description: 'D'.repeat(2001),
+      }),
+    },
+    env,
+  );
+  assert.equal(tooLongDescResp.status, 400);
+
+  const invalidIdResp = await app.request(
+    '/api/wishes/' + encodeURIComponent('a'.repeat(129)),
+    {
+      method: 'PUT',
+      headers: authHeaders('pass1234'),
+      body: JSON.stringify({
+        title: 'next',
+      }),
+    },
+    env,
+  );
+  assert.equal(invalidIdResp.status, 400);
+});
+
+test('API responses should set no-store cache policy', async () => {
+  const env = {
+    WISHLIST_KV: new MemoryKV(),
+  };
+  await setupAppState(env);
+
+  const resp = await app.request('/api/public', undefined, env);
+  assert.equal(resp.status, 200);
+  assert.equal(resp.headers.get('cache-control'), 'no-store');
+});
+
+test('existing legacy config with long owner name should still block setup reset', async () => {
+  const env = {
+    WISHLIST_KV: new MemoryKV(),
+  };
+
+  await env.WISHLIST_KV.put(
+    'wishlist:config',
+    JSON.stringify({
+      name: '旧版本超长用户名'.repeat(6),
+      passwordHash: 'legacy-hash',
+      salt: 'legacy-salt',
+      createdAt: '2025-01-01T00:00:00.000Z',
+    }),
+  );
+
+  const setupResp = await app.request(
+    '/api/setup',
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: 'owner',
+        password: 'pass1234',
+      }),
+    },
+    env,
+  );
+  assert.equal(setupResp.status, 409);
+
+  const publicResp = await app.request('/api/public', undefined, env);
+  assert.equal(publicResp.status, 200);
+  const payload = await publicResp.json();
+  assert.equal(payload.hasConfig, true);
+});
+
+test('CSP style-src should allow inline style used by responsive layout', async () => {
+  const env = {
+    WISHLIST_KV: new MemoryKV(),
+  };
+
+  const resp = await app.request('/', undefined, env);
+  assert.equal(resp.status, 200);
+  const csp = resp.headers.get('content-security-policy') ?? '';
+  assert.match(csp, /style-src[^;]*'unsafe-inline'/);
+});

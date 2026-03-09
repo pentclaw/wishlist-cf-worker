@@ -1,55 +1,70 @@
 import { Hono } from 'hono';
+import type {
+  AppConfig,
+  Bindings,
+  PasswordHashAlgorithm,
+  RequestAuthState,
+  Wish,
+  WishExportPayload,
+  WishState,
+} from './types.js';
+import {
+  MAX_OWNER_NAME_LENGTH,
+  MAX_PASSWORD_LENGTH,
+  MIN_PASSWORD_LENGTH,
+  dedupeWishesById,
+  isValidWishId,
+  normalizeConfig,
+  normalizeImportedWish,
+  normalizePositiveInt,
+  normalizeSearchQuery,
+  parseImportMode,
+  parseImportedWishes,
+  parseWishMutation,
+} from './validator.js';
 import { renderHtml } from './ui.js';
-
-type Bindings = {
-  WISHLIST_KV: KVNamespace;
-};
-
-type AppConfig = {
-  name: string;
-  passwordHash: string;
-  salt: string;
-  createdAt: string;
-};
-
-type Wish = {
-  id: string;
-  title: string;
-  description: string;
-  done: boolean;
-  createdAt: string;
-  updatedAt: string;
-  completedAt?: string;
-};
-
-type WishState = {
-  wishes: Wish[];
-};
-
-type WishExportPayload = {
-  version: number;
-  exportedAt: string;
-  projectName: string;
-  ownerName: string;
-  wishes: Wish[];
-};
-
-type WishImportMode = 'replace' | 'merge';
 
 const PROJECT_NAME = '♥️の种草';
 const CONFIG_KEY = 'wishlist:config';
 const WISHES_KEY = 'wishlist:wishes';
 const BACKUP_VERSION = 1;
-const MAX_IMPORT_WISHES = 5000;
-const MAX_WISH_ID_LENGTH = 128;
-const MAX_WISH_TITLE_LENGTH = 120;
-const MAX_WISH_DESCRIPTION_LENGTH = 2000;
 const AUTH_COOKIE_NAME = 'wishlist_auth';
 const AUTH_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
+const PASSWORD_HASH_ITERATIONS = 120_000;
+const DEFAULT_PASSWORD_ALGORITHM: PasswordHashAlgorithm = 'pbkdf2-v2';
+const AUTH_TOKEN_PREFIX = 'wishlist-auth';
 
-type RequestAuthState = 'ok' | 'missing' | 'invalid-header' | 'invalid-cookie';
+const APP_CSP = [
+  "default-src 'self'",
+  "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+  "script-src 'self' 'unsafe-inline'",
+  "img-src 'self' data:",
+  "base-uri 'none'",
+  "frame-ancestors 'none'",
+  "form-action 'self'",
+].join('; ');
 
 const app = new Hono<{ Bindings: Bindings }>();
+
+app.use('*', async (c, next) => {
+  c.header('X-Content-Type-Options', 'nosniff');
+  c.header('X-Frame-Options', 'DENY');
+  c.header('Referrer-Policy', 'no-referrer');
+  c.header('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+  c.header('Content-Security-Policy', APP_CSP);
+  if (c.req.path.startsWith('/api/')) {
+    c.header('Cache-Control', 'no-store');
+  }
+  await next();
+});
+
+app.onError((err, c) => {
+  console.error('[wishlist] unhandled error', err);
+  if (c.req.path.startsWith('/api/')) {
+    return c.json({ error: '服务器内部错误，请稍后重试。' }, 500);
+  }
+  return c.text('服务器内部错误，请稍后重试。', 500);
+});
 
 app.get('/', (c) => {
   return c.html(renderHtml(PROJECT_NAME));
@@ -92,11 +107,17 @@ app.get('/api/public', async (c) => {
   }
 
   const state = await loadWishState(c.env.WISHLIST_KV);
+  const completedWishes: Wish[] = [];
+  const unfinishedWishes: Wish[] = [];
+  for (const wish of state.wishes) {
+    if (wish.done) {
+      completedWishes.push(wish);
+    } else {
+      unfinishedWishes.push(wish);
+    }
+  }
 
-  const completedWishes = state.wishes
-    .filter((wish) => wish.done)
-    .sort((a, b) => (b.completedAt ?? b.updatedAt).localeCompare(a.completedAt ?? a.updatedAt));
-  const unfinishedWishes = state.wishes.filter((wish) => !wish.done);
+  completedWishes.sort((a, b) => (b.completedAt ?? b.updatedAt).localeCompare(a.completedAt ?? a.updatedAt));
 
   const randomWish =
     unfinishedWishes.length > 0
@@ -126,39 +147,48 @@ app.post('/api/setup', async (c) => {
     return c.json({ error: '请求体必须为 JSON。' }, 400);
   }
 
-  const name = (body.name ?? '').trim();
-  const password = body.password ?? '';
+  const name = typeof body.name === 'string' ? body.name.trim() : '';
+  const password = typeof body.password === 'string' ? body.password : '';
 
   if (!name) {
     return c.json({ error: '许愿人姓名不能为空。' }, 400);
   }
 
-  if (password.length < 4) {
-    return c.json({ error: '密码长度至少为 4 位。' }, 400);
+  if (name.length > MAX_OWNER_NAME_LENGTH) {
+    return c.json({ error: `许愿人姓名不能超过 ${MAX_OWNER_NAME_LENGTH} 个字符。` }, 400);
+  }
+
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return c.json({ error: `密码长度至少为 ${MIN_PASSWORD_LENGTH} 位。` }, 400);
+  }
+
+  if (password.length > MAX_PASSWORD_LENGTH) {
+    return c.json({ error: `密码长度不能超过 ${MAX_PASSWORD_LENGTH} 位。` }, 400);
   }
 
   const salt = generateSalt();
-  const passwordHash = await hashPassword(password, salt);
+  const passwordHash = await hashPassword(password, salt, DEFAULT_PASSWORD_ALGORITHM);
 
   const config: AppConfig = {
     name,
     salt,
     passwordHash,
     createdAt: new Date().toISOString(),
+    passwordAlgorithm: DEFAULT_PASSWORD_ALGORITHM,
   };
 
-  await c.env.WISHLIST_KV.put(CONFIG_KEY, JSON.stringify(config));
-
   const existingState = await c.env.WISHLIST_KV.get(WISHES_KEY, 'json');
+  const writes: Array<[string, string]> = [[CONFIG_KEY, JSON.stringify(config)]];
   if (!existingState) {
-    await saveWishState(c.env.WISHLIST_KV, { wishes: [] });
+    writes.push([WISHES_KEY, JSON.stringify({ wishes: [] } satisfies WishState)]);
   }
+  await putEntries(c.env.WISHLIST_KV, writes);
 
   return c.json({ ok: true });
 });
 
 app.post('/api/auth', async (c) => {
-  const config = await getConfig(c.env.WISHLIST_KV);
+  let config = await getConfig(c.env.WISHLIST_KV);
   if (!config) {
     return c.json({ error: '请先初始化配置。' }, 400);
   }
@@ -168,11 +198,19 @@ app.post('/api/auth', async (c) => {
     return c.json({ error: '请求体必须为 JSON。' }, 400);
   }
 
-  const password = body.password ?? '';
+  const password = typeof body.password === 'string' ? body.password : '';
+  if (!password || password.length > MAX_PASSWORD_LENGTH) {
+    return c.json({ error: '密码错误。' }, 401);
+  }
   const passed = await verifyPassword(config, password);
 
   if (!passed) {
     return c.json({ error: '密码错误。' }, 401);
+  }
+
+  if ((config.passwordAlgorithm ?? 'sha256-v1') !== DEFAULT_PASSWORD_ALGORITHM) {
+    config = await upgradeConfigPassword(config, password);
+    await c.env.WISHLIST_KV.put(CONFIG_KEY, JSON.stringify(config));
   }
 
   const token = await createAuthCookieToken(config);
@@ -204,7 +242,7 @@ app.use('/api/wishes*', async (c, next) => {
 
 app.get('/api/wishes', async (c) => {
   const state = await loadWishState(c.env.WISHLIST_KV);
-  const q = (c.req.query('q') ?? '').trim().toLowerCase();
+  const q = normalizeSearchQuery(c.req.query('q'));
   const page = normalizePositiveInt(c.req.query('page'), 1);
   const pageSize = normalizePositiveInt(c.req.query('pageSize'), 8, 1, 50);
 
@@ -238,8 +276,7 @@ app.get('/api/wishes', async (c) => {
 });
 
 app.get('/api/wishes/export', async (c) => {
-  const config = await getConfig(c.env.WISHLIST_KV);
-  const state = await loadWishState(c.env.WISHLIST_KV);
+  const [config, state] = await Promise.all([getConfig(c.env.WISHLIST_KV), loadWishState(c.env.WISHLIST_KV)]);
 
   const payload: WishExportPayload = {
     version: BACKUP_VERSION,
@@ -305,15 +342,15 @@ app.post('/api/wishes', async (c) => {
     return c.json({ error: '请求体必须为 JSON。' }, 400);
   }
 
-  const title = (body.title ?? '').trim();
-  const description = (body.description ?? '').trim();
-  const done = Boolean(body.done);
-
-  if (!title) {
-    return c.json({ error: '项目名称不能为空。' }, 400);
+  const parsed = parseWishMutation(body, { requireTitle: true });
+  if (parsed.ok === false) {
+    return c.json({ error: parsed.error }, 400);
   }
 
   const now = new Date().toISOString();
+  const title = parsed.value.title ?? '';
+  const description = parsed.value.description ?? '';
+  const done = parsed.value.done ?? false;
   const wish: Wish = {
     id: crypto.randomUUID(),
     title,
@@ -336,9 +373,17 @@ app.post('/api/wishes', async (c) => {
 
 app.put('/api/wishes/:id', async (c) => {
   const id = c.req.param('id');
+  if (!isValidWishId(id)) {
+    return c.json({ error: '愿望 ID 无效。' }, 400);
+  }
   const body = await readJson<{ title?: string; description?: string; done?: boolean }>(c);
   if (!body) {
     return c.json({ error: '请求体必须为 JSON。' }, 400);
+  }
+
+  const parsed = parseWishMutation(body, { requireTitle: false });
+  if (parsed.ok === false) {
+    return c.json({ error: parsed.error }, 400);
   }
 
   const state = await loadWishState(c.env.WISHLIST_KV);
@@ -349,26 +394,30 @@ app.put('/api/wishes/:id', async (c) => {
   }
 
   const target = state.wishes[index];
+  let changed = false;
 
-  if (typeof body.title === 'string') {
-    const nextTitle = body.title.trim();
-    if (!nextTitle) {
-      return c.json({ error: '项目名称不能为空。' }, 400);
-    }
-    target.title = nextTitle;
+  if (typeof parsed.value.title === 'string' && parsed.value.title !== target.title) {
+    target.title = parsed.value.title;
+    changed = true;
   }
 
-  if (typeof body.description === 'string') {
-    target.description = body.description.trim();
+  if (typeof parsed.value.description === 'string' && parsed.value.description !== target.description) {
+    target.description = parsed.value.description;
+    changed = true;
   }
 
-  if (typeof body.done === 'boolean' && body.done !== target.done) {
-    target.done = body.done;
+  if (typeof parsed.value.done === 'boolean' && parsed.value.done !== target.done) {
+    target.done = parsed.value.done;
+    changed = true;
     if (target.done) {
       target.completedAt = new Date().toISOString();
     } else {
       delete target.completedAt;
     }
+  }
+
+  if (!changed) {
+    return c.json({ wish: target });
   }
 
   target.updatedAt = new Date().toISOString();
@@ -379,6 +428,9 @@ app.put('/api/wishes/:id', async (c) => {
 
 app.delete('/api/wishes/:id', async (c) => {
   const id = c.req.param('id');
+  if (!isValidWishId(id)) {
+    return c.json({ error: '愿望 ID 无效。' }, 400);
+  }
   const state = await loadWishState(c.env.WISHLIST_KV);
   const nextWishes = state.wishes.filter((wish) => wish.id !== id);
 
@@ -393,19 +445,39 @@ app.delete('/api/wishes/:id', async (c) => {
 });
 
 async function getConfig(kv: KVNamespace): Promise<AppConfig | null> {
-  return kv.get(CONFIG_KEY, 'json');
+  const raw = await kv.get(CONFIG_KEY, 'json');
+  return normalizeConfig(raw);
 }
 
 async function loadWishState(kv: KVNamespace): Promise<WishState> {
-  const state = await kv.get(WISHES_KEY, 'json');
-  if (!state || typeof state !== 'object' || !Array.isArray((state as WishState).wishes)) {
+  const raw = await kv.get(WISHES_KEY, 'json');
+  if (!raw || typeof raw !== 'object') {
     return { wishes: [] };
   }
-  return state as WishState;
+
+  const rawWishes = (raw as { wishes?: unknown }).wishes;
+  if (!Array.isArray(rawWishes)) {
+    return { wishes: [] };
+  }
+
+  const now = new Date().toISOString();
+  const normalized: Wish[] = [];
+  for (const item of rawWishes) {
+    const wish = normalizeImportedWish(item, now);
+    if (wish) {
+      normalized.push(wish);
+    }
+  }
+
+  return { wishes: dedupeWishesById(normalized) };
 }
 
 async function saveWishState(kv: KVNamespace, state: WishState): Promise<void> {
   await kv.put(WISHES_KEY, JSON.stringify(state));
+}
+
+async function putEntries(kv: KVNamespace, entries: Array<[string, string]>): Promise<void> {
+  await Promise.all(entries.map(([key, value]) => kv.put(key, value)));
 }
 
 async function readJson<T>(c: { req: { json: <J>() => Promise<J> } }): Promise<T | null> {
@@ -422,17 +494,40 @@ function generateSalt(): string {
   return bytesToBase64(bytes);
 }
 
-async function hashPassword(password: string, salt: string): Promise<string> {
+async function hashPassword(password: string, salt: string, algorithm: PasswordHashAlgorithm): Promise<string> {
+  if (algorithm === 'pbkdf2-v2') {
+    return hashPasswordPbkdf2(password, salt);
+  }
+  return hashPasswordLegacy(password, salt);
+}
+
+async function hashPasswordLegacy(password: string, salt: string): Promise<string> {
   const encoded = new TextEncoder().encode(`${salt}:${password}`);
   const digest = await crypto.subtle.digest('SHA-256', encoded);
   return bytesToBase64(new Uint8Array(digest));
+}
+
+async function hashPasswordPbkdf2(password: string, salt: string): Promise<string> {
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits(
+    {
+      name: 'PBKDF2',
+      hash: 'SHA-256',
+      iterations: PASSWORD_HASH_ITERATIONS,
+      salt: new TextEncoder().encode(`wishlist:${salt}`),
+    },
+    key,
+    256,
+  );
+  return bytesToBase64(new Uint8Array(bits));
 }
 
 async function verifyPassword(config: AppConfig, password: string): Promise<boolean> {
   if (!password) {
     return false;
   }
-  const inputHash = await hashPassword(password, config.salt);
+  const algorithm = config.passwordAlgorithm ?? 'sha256-v1';
+  const inputHash = await hashPassword(password, config.salt, algorithm);
   return timingSafeEqual(inputHash, config.passwordHash);
 }
 
@@ -463,7 +558,7 @@ async function resolveRequestAuthState(
 
 async function createAuthCookieToken(config: AppConfig): Promise<string> {
   const expiresAt = Math.floor(Date.now() / 1000) + AUTH_COOKIE_MAX_AGE_SECONDS;
-  const signature = await hashPassword(`wishlist-auth:${expiresAt}:${config.passwordHash}`, config.salt);
+  const signature = await signAuthCookieToken(config, expiresAt);
   return `${expiresAt}.${signature}`;
 }
 
@@ -489,8 +584,14 @@ async function verifyAuthCookieToken(config: AppConfig, token: string): Promise<
     return false;
   }
 
-  const expected = await hashPassword(`wishlist-auth:${expiresAt}:${config.passwordHash}`, config.salt);
+  const expected = await signAuthCookieToken(config, expiresAt);
   return timingSafeEqual(signature, expected);
+}
+
+async function signAuthCookieToken(config: AppConfig, expiresAt: number): Promise<string> {
+  const encoded = new TextEncoder().encode(`${AUTH_TOKEN_PREFIX}:${expiresAt}:${config.passwordHash}:${config.salt}`);
+  const digest = await crypto.subtle.digest('SHA-256', encoded);
+  return bytesToBase64(new Uint8Array(digest));
 }
 
 function readCookie(cookieHeader: string, name: string): string {
@@ -546,14 +647,12 @@ function buildClearAuthCookie(secure: boolean): string {
 }
 
 function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) {
-    return false;
-  }
   let diff = 0;
-  for (let i = 0; i < a.length; i += 1) {
-    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  const maxLength = Math.max(a.length, b.length);
+  for (let i = 0; i < maxLength; i += 1) {
+    diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
   }
-  return diff === 0;
+  return diff === 0 && a.length === b.length;
 }
 
 function bytesToBase64(bytes: Uint8Array): string {
@@ -564,113 +663,15 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-function normalizePositiveInt(
-  raw: string | undefined,
-  fallback: number,
-  min = 1,
-  max = Number.MAX_SAFE_INTEGER,
-): number {
-  const value = Number(raw);
-  if (!Number.isInteger(value) || value < min) {
-    return fallback;
-  }
-  return Math.min(value, max);
-}
-
-function parseImportMode(raw: unknown): WishImportMode | null {
-  if (raw === 'replace' || raw === 'merge') {
-    return raw;
-  }
-  return null;
-}
-
-function parseImportedWishes(raw: unknown): Wish[] | null {
-  if (!raw || typeof raw !== 'object') {
-    return null;
-  }
-  const wishes = (raw as { wishes?: unknown }).wishes;
-  if (!Array.isArray(wishes) || wishes.length > MAX_IMPORT_WISHES) {
-    return null;
-  }
-
-  const now = new Date().toISOString();
-  const normalized: Wish[] = [];
-  for (const item of wishes) {
-    const wish = normalizeImportedWish(item, now);
-    if (!wish) {
-      return null;
-    }
-    normalized.push(wish);
-  }
-
-  return normalized;
-}
-
-function normalizeImportedWish(raw: unknown, fallbackTime: string): Wish | null {
-  if (!raw || typeof raw !== 'object') {
-    return null;
-  }
-  const input = raw as Record<string, unknown>;
-
-  const title = typeof input.title === 'string' ? input.title.trim() : '';
-  if (!title || title.length > MAX_WISH_TITLE_LENGTH) {
-    return null;
-  }
-
-  const description = typeof input.description === 'string' ? input.description.trim() : '';
-  if (description.length > MAX_WISH_DESCRIPTION_LENGTH) {
-    return null;
-  }
-
-  const done = typeof input.done === 'boolean' ? input.done : false;
-  const createdAt = normalizeDateString(input.createdAt, fallbackTime);
-  const updatedAt = normalizeDateString(input.updatedAt, createdAt);
-  const completedAt = done
-    ? normalizeDateString(input.completedAt, updatedAt)
-    : undefined;
-  const normalizedId = typeof input.id === 'string' ? input.id.trim() : '';
-  const id =
-    normalizedId && normalizedId.length <= MAX_WISH_ID_LENGTH
-      ? normalizedId
-      : crypto.randomUUID();
-
-  const wish: Wish = {
-    id,
-    title,
-    description,
-    done,
-    createdAt,
-    updatedAt,
+async function upgradeConfigPassword(config: AppConfig, password: string): Promise<AppConfig> {
+  const nextSalt = generateSalt();
+  const nextHash = await hashPassword(password, nextSalt, DEFAULT_PASSWORD_ALGORITHM);
+  return {
+    ...config,
+    salt: nextSalt,
+    passwordHash: nextHash,
+    passwordAlgorithm: DEFAULT_PASSWORD_ALGORITHM,
   };
-
-  if (completedAt) {
-    wish.completedAt = completedAt;
-  }
-
-  return wish;
-}
-
-function normalizeDateString(raw: unknown, fallback: string): string {
-  if (typeof raw !== 'string') {
-    return fallback;
-  }
-  const value = raw.trim();
-  if (!value) {
-    return fallback;
-  }
-  const ts = Date.parse(value);
-  if (Number.isNaN(ts)) {
-    return fallback;
-  }
-  return new Date(ts).toISOString();
-}
-
-function dedupeWishesById(wishes: Wish[]): Wish[] {
-  const unique = new Map<string, Wish>();
-  for (const wish of wishes) {
-    unique.set(wish.id, wish);
-  }
-  return [...unique.values()].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
 export default app;
