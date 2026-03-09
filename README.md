@@ -7,8 +7,9 @@
 - 首次初始化：许愿人姓名 + 验证密码
 - 密码验证后增删改查愿望
 - 密码验证后导出/导入备份（JSON）
-- 登录后随机弹出未实现愿望
-- 登录后展示已实现愿望清单
+- 主页面导航分区：随机愿望 / 已实现清单 / 登录验证 / 新增 / 备份恢复 / 全部愿望
+- 登录后在主页面查看随机未实现愿望与已实现愿望清单（不使用随机弹窗）
+- 覆盖导入使用确认弹框，删除支持二次确认与可撤销倒计时
 - PC / 移动端响应式适配
 
 ## 一键部署（Deploy to Cloudflare）
@@ -62,6 +63,16 @@ npx wrangler kv namespace create WISHLIST_KV --preview
 npm run dev
 ```
 
+启动后默认访问：
+
+- `http://127.0.0.1:8787`
+
+如端口冲突，可自定义端口：
+
+```bash
+npx wrangler dev src/index.ts --local --port 8788
+```
+
 ### 6. 正式部署
 
 ```bash
@@ -71,7 +82,7 @@ npm run deploy
 ## 项目结构
 
 - [src/index.ts](./src/index.ts): Hono Worker、KV 存储、鉴权与 CRUD API
-- [src/ui.ts](./src/ui.ts): 前端页面模板与交互逻辑
+- [src/ui.ts](./src/ui.ts): 前端页面模板与交互逻辑（基于 Pico.css 语义化 UI）
 - [wrangler.toml](./wrangler.toml): Worker 配置与 KV 绑定
 
 ## API 速览
