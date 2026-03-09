@@ -16,18 +16,20 @@ test('renderHtml should expose inline feature navigation instead of manager draw
   assert.doesNotMatch(html, /id="managerMask"/);
 });
 
-test('renderHtml should not include popup overlays or browser popup APIs', () => {
+test('renderHtml should not include random popup or browser popup APIs', () => {
   const html = renderHtml('测试项目');
 
   assert.doesNotMatch(html, /id="randomOverlay"/);
-  assert.doesNotMatch(html, /id="confirmOverlay"/);
   assert.doesNotMatch(html, /window\.alert\(/);
   assert.doesNotMatch(html, /window\.prompt\(/);
 });
 
-test('renderHtml should include inline strong confirmations for risky actions', () => {
+test('renderHtml should include dialog confirmation for risky actions', () => {
   const html = renderHtml('测试项目');
 
-  assert.match(html, /id="replaceConfirmText"/);
+  assert.match(html, /id="confirmOverlay"/);
   assert.match(html, /id="undoDelete"/);
+  assert.match(html, /覆盖导入会替换当前全部愿望/);
+  assert.doesNotMatch(html, /id="replaceConfirmText"/);
+  assert.doesNotMatch(html, /id="replaceConfirm"/);
 });

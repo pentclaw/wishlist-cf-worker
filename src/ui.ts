@@ -268,6 +268,48 @@ export function renderHtml(projectName: string): string {
         min-height: 1.4em;
       }
 
+      .overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(52, 32, 18, 0.48);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding:
+          max(var(--space-5), env(safe-area-inset-top))
+          max(var(--space-5), env(safe-area-inset-right))
+          max(var(--space-5), env(safe-area-inset-bottom))
+          max(var(--space-5), env(safe-area-inset-left));
+        z-index: 20;
+      }
+
+      .overlay.open {
+        display: flex;
+      }
+
+      .dialog {
+        max-width: 420px;
+        width: 100%;
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: var(--space-7);
+      }
+
+      .dialog-message {
+        margin: 0;
+        color: var(--text);
+        line-height: 1.6;
+      }
+
+      .dialog-actions {
+        display: flex;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+        gap: var(--space-4);
+        margin-top: var(--space-5);
+      }
+
       .wish-actions {
         display: flex;
         flex-wrap: wrap;
@@ -459,14 +501,6 @@ export function renderHtml(projectName: string): string {
               <input type="radio" name="importMode" value="merge" />
               合并到现有数据
             </label>
-            <label class="inline">
-              <input type="checkbox" id="replaceConfirm" />
-              我已确认：覆盖模式会替换全部愿望
-            </label>
-            <label class="field" style="width: 100%;">
-              <span>输入“确认覆盖”后才允许覆盖导入</span>
-              <input id="replaceConfirmText" placeholder="请输入：确认覆盖" />
-            </label>
           </div>
           <button type="button" class="button" id="importData">开始导入</button>
           <p class="status" id="backupStatus"></p>
@@ -494,6 +528,17 @@ export function renderHtml(projectName: string): string {
           </div>
         </section>
       </main>
+    </div>
+
+    <div class="overlay" id="confirmOverlay">
+      <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMessage">
+        <h2 id="confirmTitle">请确认操作</h2>
+        <p class="dialog-message" id="confirmMessage"></p>
+        <div class="dialog-actions">
+          <button class="button ghost" id="confirmCancel">取消</button>
+          <button class="button danger" id="confirmOk">确认</button>
+        </div>
+      </div>
     </div>
 
     <script>
@@ -551,13 +596,15 @@ export function renderHtml(projectName: string): string {
       const importFile = document.getElementById('importFile');
       const importFileName = document.getElementById('importFileName');
       const importData = document.getElementById('importData');
-      const importModeInputs = Array.from(document.querySelectorAll('input[name="importMode"]'));
-      const replaceConfirm = document.getElementById('replaceConfirm');
-      const replaceConfirmText = document.getElementById('replaceConfirmText');
       const backupStatus = document.getElementById('backupStatus');
+      const confirmOverlay = document.getElementById('confirmOverlay');
+      const confirmMessage = document.getElementById('confirmMessage');
+      const confirmCancel = document.getElementById('confirmCancel');
+      const confirmOk = document.getElementById('confirmOk');
       const manageStatusActions = document.getElementById('manageStatusActions');
       const undoDelete = document.getElementById('undoDelete');
       let scheduledDeleteTimer = null;
+      let confirmResolve = null;
 
       function setText(el, value) {
         if (el) {
@@ -836,13 +883,10 @@ export function renderHtml(projectName: string): string {
         }
 
         const mode = getImportMode();
-        const confirmText = replaceConfirmText ? replaceConfirmText.value.trim() : '';
         if (mode === 'replace') {
-          if (replaceConfirm && !replaceConfirm.checked) {
-            throw new Error('覆盖导入前请勾选确认选项。');
-          }
-          if (confirmText !== '确认覆盖') {
-            throw new Error('覆盖导入前请输入“确认覆盖”。');
+          const confirmed = await openConfirmDialog('覆盖导入会替换当前全部愿望，确定继续吗？', '确认覆盖');
+          if (!confirmed) {
+            return null;
           }
         }
 
@@ -861,14 +905,36 @@ export function renderHtml(projectName: string): string {
           loadPublicState()
         ]);
 
-        if (replaceConfirm) {
-          replaceConfirm.checked = false;
-        }
-        if (replaceConfirmText) {
-          replaceConfirmText.value = '';
-        }
-
         return result;
+      }
+
+      function closeConfirmDialog(confirmed) {
+        if (confirmOverlay) {
+          confirmOverlay.classList.remove('open');
+        }
+        if (confirmResolve) {
+          const done = confirmResolve;
+          confirmResolve = null;
+          done(confirmed);
+        }
+      }
+
+      function openConfirmDialog(message, okText) {
+        return new Promise(function(resolve) {
+          confirmResolve = resolve;
+          if (confirmMessage) {
+            confirmMessage.textContent = message;
+          }
+          if (confirmOk && okText) {
+            confirmOk.textContent = okText;
+          }
+          if (confirmOverlay) {
+            confirmOverlay.classList.add('open');
+          }
+          if (confirmCancel) {
+            confirmCancel.focus();
+          }
+        });
       }
 
       function setManageMessage(message) {
@@ -1176,6 +1242,23 @@ export function renderHtml(projectName: string): string {
         });
       }
 
+      confirmCancel.addEventListener('click', function() {
+        closeConfirmDialog(false);
+      });
+      confirmOk.addEventListener('click', function() {
+        closeConfirmDialog(true);
+      });
+      confirmOverlay.addEventListener('click', function(event) {
+        if (event.target === confirmOverlay) {
+          closeConfirmDialog(false);
+        }
+      });
+      document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape' && confirmOverlay.classList.contains('open')) {
+          closeConfirmDialog(false);
+        }
+      });
+
       navButtons.forEach(function(button) {
         button.addEventListener('click', async function() {
           const panelName = button.dataset.panelNav || 'random';
@@ -1327,23 +1410,14 @@ export function renderHtml(projectName: string): string {
         }
       });
 
-      importModeInputs.forEach(function(input) {
-        input.addEventListener('change', function() {
-          if (input.value === 'merge') {
-            if (replaceConfirm) {
-              replaceConfirm.checked = false;
-            }
-            if (replaceConfirmText) {
-              replaceConfirmText.value = '';
-            }
-          }
-        });
-      });
-
       importData.addEventListener('click', async function() {
         try {
           setText(backupStatus, '正在导入备份...');
           const result = await importBackup();
+          if (!result) {
+            setText(backupStatus, '已取消导入。');
+            return;
+          }
           const overwriteText = result.mode === 'merge' ? '，覆盖同 ID ' + result.overwrittenCount + ' 条' : '';
           setText(
             backupStatus,
